@@ -80,6 +80,7 @@ h1, h2, h3, h4, .cinzel { font-family: 'Cinzel', serif; letter-spacing: 0.04em; 
 
 /* TOWN */
 .town-container { display: grid; grid-template-columns: 340px 1fr; gap: 20px; }
+@media (max-width: 1000px) { .town-container { grid-template-columns: 1fr; } }
 .player-panel { background: var(--panel-bg); border: 2px solid var(--border-bright); border-radius: 8px; padding: 24px; position: relative; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.8); }
 .player-avatar { width: 100px; height: 100px; margin: 0 auto 12px; border: 2px solid var(--gold); border-radius: 50%; overflow: hidden; background: #000; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 20px rgba(255,184,48,0.2); }
 .player-avatar img { width: 100%; height: 100%; object-fit: cover; }
@@ -104,6 +105,7 @@ h1, h2, h3, h4, .cinzel { font-family: 'Cinzel', serif; letter-spacing: 0.04em; 
 .action-card.disabled { opacity: 0.4; pointer-events: none; filter: grayscale(1); }
 .action-title { font-family: 'Cinzel', serif; font-size: 20px; color: var(--gold); margin-bottom: 6px; }
 .action-desc { font-size: 13px; color: var(--text-dim); margin-bottom: 12px; line-height: 1.4; }
+.action-meta { font-size: 11px; color: var(--text-mute); text-transform: uppercase; letter-spacing: 0.1em; padding-top: 8px; border-top: 1px solid var(--border); }
 
 /* MAP ENHANCEMENTS */
 .map-container { display: grid; grid-template-columns: 1fr 300px; gap: 20px; }
@@ -480,6 +482,27 @@ const ITEM_SLOTS = ['head', 'shoulders', 'chest', 'hands', 'legs', 'feet', 'weap
 let state = { user: null, player: null, currentScreen: 'auth', worldMap: null, combat: null, mode: null, classFilter: 'all', onlinePlayers: [], animationFrame: null, tempShopItems: [], tempPvPItems: [], prevScreen: 'town' };
 let pingInterval = null;
 
+// --- SESSION STORAGE & REFRESH FIX ---
+window.onload = () => {
+    const session = localStorage.getItem('azeroth_session');
+    if (session) {
+        state.user = JSON.parse(session);
+        startPing();
+        const localSave = localStorage.getItem('azeroth_board_save');
+        if(localSave) {
+            const parsed = JSON.parse(localSave);
+            state.player = parsed.player;
+            state.worldMap = parsed.worldMap;
+            if(state.player) enterTown();
+            else { showScreen('character'); renderClassGrid(); }
+        } else {
+            showScreen('character'); renderClassGrid();
+        }
+    } else {
+        showScreen('auth');
+    }
+}
+
 // --- UTILS & API ---
 function rng(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
 function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
@@ -498,7 +521,11 @@ async function handleRegister() {
   const u = document.getElementById('reg-username').value.trim(); const p = document.getElementById('reg-password').value;
   if(!u || !p) return;
   const res = await apiRequest({ action: 'register', username: u, password: p });
-  if (res.success) { state.user = { username: u, password: p }; startPing(); showScreen('character'); renderClassGrid(); }
+  if (res.success) { 
+      state.user = { username: u, password: p }; 
+      localStorage.setItem('azeroth_session', JSON.stringify(state.user)); // Session Fix
+      startPing(); showScreen('character'); renderClassGrid(); 
+  }
   else document.getElementById('reg-error').textContent = res.message;
 }
 
@@ -507,14 +534,22 @@ async function handleLogin() {
   if(!u || !p) return;
   const res = await apiRequest({ action: 'login', username: u, password: p });
   if (res.success) {
-    state.user = { username: u, password: p }; startPing();
+    state.user = { username: u, password: p }; 
+    localStorage.setItem('azeroth_session', JSON.stringify(state.user)); // Session Fix
+    startPing();
     if (res.saveData) {
       try { const save = JSON.parse(res.saveData); state.player = save.player; state.worldMap = save.worldMap; enterTown(); }
       catch(e) { showScreen('character'); renderClassGrid(); }
     } else { showScreen('character'); renderClassGrid(); }
   } else document.getElementById('login-error').textContent = res.message;
 }
-function handleLogout() { clearInterval(pingInterval); state.user = null; state.player = null; state.worldMap = null; showScreen('auth'); }
+
+function handleLogout() { 
+    clearInterval(pingInterval); 
+    state.user = null; state.player = null; state.worldMap = null; 
+    localStorage.removeItem('azeroth_session');
+    showScreen('auth'); 
+}
 
 function openChangePassword() {
   document.getElementById('modal-overlay').innerHTML = `<div class="modal-box" style="max-width:400px;"><div class="modal-title">Account</div><input type="password" class="auth-input" id="old-pass" placeholder="Old Password" style="margin-bottom:10px;"><input type="password" class="auth-input" id="new-pass" placeholder="New Password" style="margin-bottom:10px;"><div class="auth-error" id="pass-error" style="margin-bottom:10px;"></div><button class="auth-btn" onclick="handleChangePassword()">Change</button><div style="text-align:center;margin-top:20px;"><button class="btn" onclick="document.getElementById('modal-overlay').classList.remove('active')">Cancel</button></div></div>`;
@@ -524,7 +559,7 @@ async function handleChangePassword() {
   const oldP = document.getElementById('old-pass').value; const newP = document.getElementById('new-pass').value;
   if(!oldP || !newP) return;
   const res = await apiRequest({ action: 'changePassword', username: state.user.username, password: oldP, newPassword: newP });
-  if (res.success) { showToast('Password changed!'); state.user.password = newP; document.getElementById('modal-overlay').classList.remove('active'); }
+  if (res.success) { showToast('Password changed!'); state.user.password = newP; localStorage.setItem('azeroth_session', JSON.stringify(state.user)); document.getElementById('modal-overlay').classList.remove('active'); }
   else document.getElementById('pass-error').textContent = res.message;
 }
 
@@ -532,10 +567,14 @@ async function saveGame(showToastMsg = false) {
   if (!state.player || !state.user) return;
   const now = Date.now();
   if (state.player.lastArenaReset && (now - state.player.lastArenaReset > 86400000)) { state.player.arenaPoints = 0; state.player.lastArenaReset = now; }
-  const saveData = JSON.stringify({ player: state.player, worldMap: state.worldMap });
-  const res = await apiRequest({ action: 'save', username: state.user.username, password: state.user.password, saveData });
-  if (showToastMsg) showToast(res.success ? 'Game saved to cloud!' : 'Save failed.');
+  
+  const payload = { player: state.player, worldMap: state.worldMap };
+  localStorage.setItem('azeroth_board_save', JSON.stringify(payload)); // DUAL SAVE FIX
+  
+  const res = await apiRequest({ action: 'save', username: state.user.username, password: state.user.password, saveData: JSON.stringify(payload) });
+  if (showToastMsg) showToast(res.success ? 'Game saved to cloud!' : 'Cloud save failed.');
 }
+
 async function startPing() {
   if (pingInterval) clearInterval(pingInterval);
   const ping = async () => {
@@ -620,19 +659,27 @@ function renderPlayerPanel() {
       <div class="stat-box"><span class="stat-label">DEF</span><span class="stat-value">${p.def + getEquipBonus('def')}</span></div>
       <div class="stat-box"><span class="stat-label">Gold</span><span class="stat-value">${p.gold}</span></div>
       <div class="stat-box"><span class="stat-label">Honor</span><span class="stat-value" style="color:var(--honor)">${p.honor}</span></div>
+      <div class="stat-box" style="grid-column: 1 / -1;"><span class="stat-label">Arena Points</span><span class="stat-value" style="color:var(--arena)">${p.arenaPoints}</span></div>
     </div>`;
 }
 
 function renderActionArea() {
   const p = state.player;
+  
+  // FIX 1: Restore Action Cards explicitly in Town
   document.getElementById('action-area').innerHTML = `
     <div class="action-card" onclick="openZoneModal()">
       <div class="action-title">Adventure</div><div class="action-desc">Pilih zona, buka tile, jelajahi peta dunia dan dapatkan loot. (Murni Leveling)</div>
     </div>
-    <div class="action-card" style="border-color:var(--border-bright);">
-      <div class="action-title" style="color:var(--text-dim)">Multiplayer</div><div class="action-desc">Klik nama pemain di <b style="color:var(--gold)">Online List</b> untuk invite ke Dungeon, Raid, PvP Arena, atau Duel 1v1.</div>
+    <div class="action-card ${p.level<5?'disabled':''}" onclick="${p.level<5?'':'enterDungeonInstance(state.player.level)'}">
+      <div class="action-title" style="color:var(--rare)">Dungeon</div><div class="action-desc">Solo Run. Boss drop item Epic.</div><div class="action-meta">${p.level<5?'Need Lv 5':'Lv 5+'}</div>
     </div>
-  `;
+    <div class="action-card ${p.level<15?'disabled':''}" onclick="${p.level<15?'':'enterRaidInstance(state.player.level)'}">
+      <div class="action-title" style="color:var(--epic)">Raid</div><div class="action-desc">Boss 3 Phase. Dijamin drop Legendary.</div><div class="action-meta">${p.level<15?'Need Lv 15':'Lv 15+'}</div>
+    </div>
+    <div class="action-card ${p.level<10?'disabled':''}" onclick="${p.level<10?'':'enterPvPInstance()'}">
+      <div class="action-title" style="color:var(--health)">PvP Arena</div><div class="action-desc">Solo Duel, dapatkan Honor & Arena Points.</div><div class="action-meta">${p.level<10?'Need Lv 10':'Lv 10+'}</div>
+    </div>`;
 }
 
 // --- MULTIPLAYER INTERACTION ---
@@ -694,7 +741,6 @@ function inviteMode(username, mode) {
     const mainAlly = generateMockAlly(username);
     
     if (mode === 'duel') {
-        // Direct 1v1 Enemy
         const enemy = { name: username, icon: '🛡️', hp: state.player.maxHp, atk: state.player.atk, def: state.player.def, xp: 0, gold: 0, level: state.player.level };
         startCombat([enemy], 'duel', null, []);
         return;
@@ -711,12 +757,11 @@ function inviteMode(username, mode) {
         startCombat([opp1, opp2], 'pvp', null, allies);
     } 
     else if (mode === 'raid') {
-        // Auto fill to ensure Tank, Healer, DPS
         allies.push(mainAlly);
         let currentRoles = [state.player.role, mainAlly.role];
         if(!currentRoles.includes('tank')) allies.push(generateMockAlly('Bot_Tank', 'tank'));
         if(!currentRoles.includes('healer')) allies.push(generateMockAlly('Bot_Healer', 'healer'));
-        while(allies.length < 3) allies.push(generateMockAlly(`Bot_DPS_${allies.length}`, 'dps')); // Max 4 allies
+        while(allies.length < 3) allies.push(generateMockAlly(`Bot_DPS_${allies.length}`, 'dps'));
         
         const boss = { name: 'Raid Boss', icon: '🐉', isEmoji: true, hp: 800 * 60, atk: 25 * 60, def: 15 * 60, xp: 5000, gold: 1000, level: 60, isElite: true, phases: 3 };
         startCombat([boss], 'raid', null, allies);
@@ -933,7 +978,7 @@ function moveToTile(tx, ty) {
   map.playerX = tx; map.playerY = ty; renderMap();
   
   if (!tile.cleared) {
-    if (tile.enemy) { startCombat([tile.enemy], 'world', tile); }
+    if (tile.enemy) { startCombat([tile.enemy], 'world', tile, []); }
     else if (tile.type === 'town') { restAtTown(); }
   }
   document.getElementById('tile-info').innerHTML = "Click a tile to inspect.";
@@ -1062,7 +1107,7 @@ function generateItem(level, rarity, forcedName = null, statMult = 1) {
   return { id: 'it_' + Date.now() + Math.random(), name: forcedName || `${rarity.charAt(0).toUpperCase()+rarity.slice(1)} ${slot}`, slot, rarity, level, stats, icon };
 }
 
-// --- COMBAT MULTIPLAYER (PARTY) SYSTEM ---
+// --- FIX 2: COMBAT PARTY TURN-BASED SYSTEM ---
 function startCombat(enemies, mode, sourceTile = null, alliesList = []) {
   state.combat = { 
       enemies: enemies.map(e => ({...e, maxHp: e.hp, alive: true})), 
@@ -1148,19 +1193,31 @@ function useAbility(idx) {
       state.combat.log.push(`<span style="color:var(--gold)">${ab.name}</span> hits ${e.name} for <span style="color:#ffcc00; font-weight:bold;">${dmg}</span>`); 
   }
   
+  // Trigger sequence: Player -> Allies -> Enemy
   state.combat.turn = 'allies'; 
   renderCombat(); 
-  setTimeout(alliesTurn, 800);
+  
+  if(state.combat.allies.length > 0) {
+      setTimeout(alliesTurn, 800); // Jedah sedikit agar feel turn-based terasa
+  } else {
+      setTimeout(enemyTurn, 800);
+  }
 }
 
 function usePotion(type) {
   if (state.combat.potionCd > 0) return; const p = state.player;
   if (type === 'hp' && p.hpPotions > 0) { p.hp = Math.min(p.maxHp, p.hp + Math.floor(p.maxHp * 0.5)); p.hpPotions--; state.combat.log.push(`<span style="color:var(--health)">Used HP Potion (+${Math.floor(p.maxHp*0.5)} HP)</span>`); }
   else if (type === 'mana' && p.manaPotions > 0) { p.mana = Math.min(p.maxMana, p.mana + Math.floor(p.maxMana * 0.5)); p.manaPotions--; state.combat.log.push(`<span style="color:var(--mana)">Used Mana Potion (+${Math.floor(p.maxMana*0.5)} MP)</span>`); }
-  state.combat.potionCd = 3; state.combat.turn = 'allies'; renderCombat(); setTimeout(alliesTurn, 800);
+  
+  state.combat.potionCd = 3; 
+  state.combat.turn = 'allies'; 
+  renderCombat(); 
+  
+  if(state.combat.allies.length > 0) setTimeout(alliesTurn, 800);
+  else setTimeout(enemyTurn, 800);
 }
 
-// Allies Auto Attack
+// Sekuens Turn Allies
 function alliesTurn() {
     const liveAllies = state.combat.allies.filter(a => a.hp > 0);
     const liveEnemies = state.combat.enemies.filter(en => en.hp > 0);
@@ -1169,13 +1226,14 @@ function alliesTurn() {
 
     if(liveAllies.length > 0) {
         liveAllies.forEach(ally => {
-            if(liveEnemies[0].hp <= 0) return;
-            if(ally.role === 'healer' && Math.random() < 0.3) {
-                // Mock Heal
+            if(liveEnemies[0].hp <= 0) return; // Jika musuh sudah mati oleh serangan ally sebelumnya
+            
+            if(ally.role === 'healer' && Math.random() < 0.4) {
+                // Healer fokus heal player
                 state.player.hp = Math.min(state.player.maxHp, state.player.hp + Math.floor(ally.maxHp * 0.15));
                 state.combat.log.push(`<span style="color:var(--healer)">${ally.name} heals ${state.player.name}</span>`);
             } else {
-                // Mock Attack
+                // Attack
                 let dmg = Math.floor(ally.atk * (0.8 + Math.random() * 0.4));
                 liveEnemies[0].hp -= dmg;
                 state.combat.log.push(`<span style="color:#ccc">${ally.name}</span> hits ${liveEnemies[0].name} for <span style="color:#ffcc00;">${dmg}</span>`);
@@ -1190,6 +1248,7 @@ function alliesTurn() {
     setTimeout(enemyTurn, 1000);
 }
 
+// Sekuens Turn Enemy
 function enemyTurn() {
   const liveEnemies = state.combat.enemies.filter(en => en.hp > 0);
   const p = state.player;
@@ -1198,7 +1257,7 @@ function enemyTurn() {
   if (liveTeam.length === 0 || p.hp <= 0) { p.hp = 0; return endCombat(false); }
 
   liveEnemies.forEach(e => {
-      // Enemy targets Tank mostly, or random
+      // Enemy Target Logic (Prioritaskan Tank)
       let tank = liveTeam.find(t => t.role === 'tank');
       let target = (tank && Math.random() > 0.3) ? tank : pick(liveTeam);
       
@@ -1210,27 +1269,29 @@ function enemyTurn() {
   if (state.combat.potionCd > 0) state.combat.potionCd--;
   if (p.hp <= 0) { p.hp = 0; return endCombat(false); }
   
+  // Kembalikan turn ke player
   p.abilities.forEach(a => { if (a.currentCd > 0) a.currentCd--; });
-  state.combat.turn = 'player'; renderCombat();
+  state.combat.turn = 'player'; 
+  renderCombat();
 }
 
 function endCombat(victory) {
   const p = state.player;
   
-  // Hitung total musuh yang mati
   let totalXp = 0; let totalGold = 0;
   state.combat.enemies.forEach(e => { totalXp += e.xp; totalGold += e.gold; });
 
   if (victory) {
+    // --- FIX 4: HADIAH BERDASARKAN MODE ---
     if (state.mode === 'pvp' || state.mode === 'duel') { 
         p.honor += 50; p.arenaPoints += 10; 
-        showResult(true, totalXp, totalGold, null, [], "Honor & Arena Points");
+        showResult(true, 0, 0, null, [], "Honor & Arena Points");
     } else {
         p.xp += totalXp; p.gold += totalGold;
         
         let loot = null;
-        if (state.mode === 'raid') loot = generateItem(60, 'legendary'); // Pasti legendary level cap
-        else if (state.mode === 'dungeon') loot = generateItem(p.level, pick(['rare', 'epic'])); // Dungeon always drops better
+        if (state.mode === 'raid') loot = generateItem(60, 'legendary'); 
+        else if (state.mode === 'dungeon') loot = generateItem(p.level, pick(['rare', 'epic'])); 
         else if (Math.random() < 0.3) loot = generateItem(p.level, pick(['common', 'uncommon']));
         
         let potDrop = [];
@@ -1241,10 +1302,7 @@ function endCombat(victory) {
         if (state.combat.sourceTile) state.combat.sourceTile.cleared = true;
         while (p.xp >= p.xpNext && p.level < MAX_LEVEL) { 
             p.xp -= p.xpNext; p.level++; p.xpNext = Math.floor(p.xpNext * 1.5); 
-            p.atk += 2; 
-            updateMaxHp(); 
-            p.maxMana += 10; 
-            p.hp = p.maxHp; p.mana = p.maxMana; 
+            p.atk += 2; updateMaxHp(); p.maxMana += 10; p.hp = p.maxHp; p.mana = p.maxMana; 
         }
         showResult(true, totalXp, totalGold, loot, potDrop, "");
     }
@@ -1279,7 +1337,7 @@ function afterCombat() {
   if (state.mode === 'world' && state.worldMap) { 
       if (wasDead) {
           state.worldMap = generateWorldMap(state.worldMap.zone);
-          showToast('Kamu dibangkitkan di Hometown.');
+          showToast('Kamu dibangkitkan kembali di Hometown.');
       }
       showScreen('map'); 
       renderMap(); 
