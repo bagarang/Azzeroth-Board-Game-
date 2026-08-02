@@ -113,7 +113,7 @@ h1, h2, h3, h4, .cinzel { font-family: 'Cinzel', serif; letter-spacing: 0.04em; 
 .map-sidebar { background: var(--panel-bg); border: 2px solid var(--border-bright); border-radius: 8px; padding: 20px; }
 
 /* COMBAT MULTIPLAYER UNIT FRAMES */
-.combat-arena { background: url('https://www.transparenttextures.com/patterns/dark-matter.png'), linear-gradient(180deg, #111, #050505); border: 2px solid var(--border-bright); border-radius: 8px; padding: 20px; box-shadow: 0 10px 40px #000; }
+.combat-arena { background: url('https://www.transparenttextures.com/patterns/dark-matter.png'), linear-gradient(180deg, #111, #050505); border: 2px solid var(--border-bright); border-radius: 8px; padding: 20px; box-shadow: 0 10px 40px #000; position: relative; overflow:hidden; }
 .combat-stage { display: flex; justify-content: space-between; align-items: flex-start; min-height: 200px; position: relative; padding: 20px; gap: 20px; }
 .team-col { display: flex; flex-direction: column; gap: 10px; width: 48%; }
 .unit-frame { display: flex; background: #000; border: 2px solid #333; border-radius: 40px 8px 8px 40px; padding: 4px; padding-right: 15px; align-items: center; gap: 12px; width: 100%; position: relative; box-shadow: 2px 2px 10px rgba(0,0,0,0.8); transition: all 0.3s; }
@@ -147,6 +147,11 @@ h1, h2, h3, h4, .cinzel { font-family: 'Cinzel', serif; letter-spacing: 0.04em; 
 
 .combat-log { margin-top: 15px; background: #000; border: 1px solid var(--border); padding: 10px; height: 120px; overflow-y: auto; font-size: 12px; border-radius: 4px; }
 .log-entry { padding: 3px 0; border-bottom: 1px solid #1a1a1a; color: var(--text-dim); }
+
+/* DICE OVERLAY */
+#dice-overlay { display:none; position:absolute; inset:0; background:rgba(0,0,0,0.85); z-index:50; flex-direction:column; align-items:center; justify-content:center; border-radius:8px; backdrop-filter:blur(4px); }
+.dice-box { font-size:48px; border:2px solid var(--border-bright); width:80px; height:80px; display:flex; align-items:center; justify-content:center; border-radius:12px; background:#111; box-shadow:0 10px 20px #000; transition:all 0.3s; }
+.dice-box.winner { border-color:var(--gold); box-shadow:0 0 20px var(--gold); transform:scale(1.1); color:var(--gold); }
 
 /* INVENTORY (WOW CHARACTER PANE) */
 .char-pane-wrapper { display: grid; grid-template-columns: 70px 1fr 70px 280px; gap: 15px; background: var(--panel-bg); border: 2px solid var(--border-bright); border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.9); align-items: stretch; position: relative; }
@@ -337,14 +342,29 @@ h1, h2, h3, h4, .cinzel { font-family: 'Cinzel', serif; letter-spacing: 0.04em; 
       <div><div class="game-title" id="combat-title">Combat</div><div class="game-subtitle" id="combat-subtitle">Engaged</div></div>
       <button class="btn" onclick="tryFlee()" id="flee-btn">Flee</button>
     </div>
+    
     <div class="combat-arena">
+      <!-- DICE OVERLAY -->
+      <div id="dice-overlay">
+        <div style="font-family:Cinzel; font-size:24px; color:var(--gold); margin-bottom:20px; text-shadow:0 2px 5px #000;" id="dice-title">Roll for Initiative!</div>
+        <div style="display:flex; gap:40px; text-align:center;">
+           <div>
+              <div style="color:#fff; margin-bottom:10px; font-weight:bold; letter-spacing:1px;" id="dice-name-1">Player 1</div>
+              <div class="dice-box" id="dice-val-1">🎲</div>
+           </div>
+           <div>
+              <div style="color:#fff; margin-bottom:10px; font-weight:bold; letter-spacing:1px;" id="dice-name-2">Enemy</div>
+              <div class="dice-box" id="dice-val-2">🎲</div>
+           </div>
+        </div>
+        <button class="btn btn-primary" id="btn-roll-dice" style="margin-top:30px; font-size:18px; padding:12px 30px; font-weight:bold; box-shadow:0 5px 15px rgba(0,0,0,0.8);" onclick="handleDiceRoll()">ROLL DICE</button>
+      </div>
+
       <div class="combat-stage" id="combat-stage">
         <!-- Team Column (You + Allies) -->
         <div class="team-col" id="combat-team"></div>
         <!-- Enemies Column -->
         <div class="team-col target-col" id="combat-enemies"></div>
-        
-        <div id="damage-numbers" style="position:absolute; inset:0; pointer-events:none;"></div>
       </div>
       <div class="ability-bar" id="ability-bar"></div>
       <div class="combat-log" id="combat-log"></div>
@@ -441,7 +461,6 @@ const CLASSES = {
   evoker: { name: 'Evoker', color: '#33937F', title: 'Dragon of the Dracthyr', baseStats: { hp: 105, mana: 110, atk: 22, def: 9, crit: 11, speed: 11 }, specs: { devastation: { name: 'Devastation', role: 'dps', desc: 'Red dragonflight.', abilities: ['Living Flame', 'Pyre', "Dragon's Breath", 'Essence Burst'] }, preservation: { name: 'Preservation', role: 'healer', desc: 'Green dragonflight.', abilities: ['Living Flame', 'Emerald Blossom', 'Echo', 'Dream Flight'] }, augmentation: { name: 'Augmentation', role: 'dps', desc: 'Black dragonflight.', abilities: ['Living Flame', 'Eruption', 'Upheaval', 'Breath of Eons'] } } }
 };
 
-// --- WOW ZONES & ENEMIES UPDATE ---
 const ZONES = [
   { id: 1, name: 'Elwynn Forest', minLevel: 1, maxLevel: 10, color: '#1a331a', enemies: [0,1,2] }, 
   { id: 2, name: 'Westfall', minLevel: 8, maxLevel: 20, color: '#332c10', enemies: [3,4,5] }, 
@@ -452,27 +471,21 @@ const ZONES = [
 ];
 
 const ENEMY_TEMPLATES = [
-  // Elwynn (0-2)
   { name: 'Defias Thug', icon: '🧍', baseHp: 30, baseAtk: 8, baseDef: 3, color: '#8b7355' },
   { name: 'Forest Wolf', icon: '🐺', baseHp: 35, baseAtk: 10, baseDef: 4, color: '#a08060' },
   { name: 'Murloc Forager', icon: '🐸', baseHp: 32, baseAtk: 9, baseDef: 5, color: '#5a8a6a' },
-  // Westfall (3-5)
   { name: 'Defias Pillager', icon: '🦹', baseHp: 45, baseAtk: 14, baseDef: 5, color: '#9a3a1a' },
   { name: 'Harvest Golem', icon: '🤖', baseHp: 55, baseAtk: 12, baseDef: 10, color: '#9a9a5a' },
   { name: 'Fleshripper', icon: '🦅', baseHp: 40, baseAtk: 16, baseDef: 4, color: '#8b7355' },
-  // Duskwood (6-8)
   { name: 'Night Web Spider', icon: '🕷️', baseHp: 50, baseAtk: 15, baseDef: 6, color: '#4a2a3a' },
   { name: 'Skeletal Fiend', icon: '💀', baseHp: 55, baseAtk: 18, baseDef: 7, color: '#a0a0a0' },
   { name: 'Rabid Dire Wolf', icon: '🐺', baseHp: 65, baseAtk: 20, baseDef: 5, color: '#2a2a2a' },
-  // Stranglethorn (9-11)
   { name: 'Jungle Stalker', icon: '🦖', baseHp: 70, baseAtk: 24, baseDef: 8, color: '#6a3a3a' },
   { name: 'Bloodscalp Troll', icon: '👹', baseHp: 80, baseAtk: 22, baseDef: 10, color: '#3a6a3a' },
   { name: 'Shadowmaw Panther', icon: '🐆', baseHp: 65, baseAtk: 28, baseDef: 6, color: '#1a1a1a' },
-  // Burning Steppes (12-14)
   { name: 'Blackrock Orc', icon: '🧌', baseHp: 90, baseAtk: 26, baseDef: 12, color: '#5a3a3a' },
   { name: 'Fire Elemental', icon: '🔥', baseHp: 80, baseAtk: 32, baseDef: 8, color: '#9a3a1a' },
   { name: 'Lava Surger', icon: '🌋', baseHp: 100, baseAtk: 25, baseDef: 15, color: '#8a2a0a' },
-  // Plaguelands (15-17)
   { name: 'Plagued Ghoul', icon: '🧟', baseHp: 110, baseAtk: 30, baseDef: 12, color: '#5a6a4a' },
   { name: 'Crypt Fiend', icon: '🕷️', baseHp: 95, baseAtk: 35, baseDef: 10, color: '#3a4a5a' },
   { name: 'Cultist Necromancer', icon: '🧙‍♂️', baseHp: 85, baseAtk: 40, baseDef: 8, color: '#4a2a5a' }
@@ -480,8 +493,9 @@ const ENEMY_TEMPLATES = [
 
 const ITEM_SLOTS = ['head', 'shoulders', 'chest', 'hands', 'legs', 'feet', 'weapon', 'offhand'];
 
-let state = { user: null, player: null, currentScreen: 'auth', worldMap: null, combat: null, mode: null, classFilter: 'all', onlinePlayers: [], animationFrame: null, tempShopItems: [], tempPvPItems: [], prevScreen: 'town' };
+let state = { user: null, player: null, currentScreen: 'auth', worldMap: null, combat: null, mode: null, classFilter: 'all', onlinePlayers: [], tempShopItems: [], tempPvPItems: [], prevScreen: 'town', duelData: null };
 let pingInterval = null;
+let duelSyncInterval = null;
 
 // --- SESSION STORAGE & REFRESH FIX ---
 window.onload = () => {
@@ -518,15 +532,21 @@ async function apiRequest(payload) {
   } catch (err) { return { success: false, message: 'Network/CORS Error.' }; }
 }
 
+function getPlayerSnapshot() {
+  return { 
+      username: state.user.username, name: state.player.name, class: state.player.class, 
+      role: state.player.role, icon: CLASS_ICONS[state.player.class], level: state.player.level, 
+      hp: state.player.maxHp, maxHp: state.player.maxHp, mana: state.player.maxMana, maxMana: state.player.maxMana, 
+      atk: state.player.atk + getEquipBonus('atk'), def: state.player.def + getEquipBonus('def')
+  };
+}
+
+// --- AUTH ---
 async function handleRegister() {
   const u = document.getElementById('reg-username').value.trim(); const p = document.getElementById('reg-password').value;
   if(!u || !p) return;
   const res = await apiRequest({ action: 'register', username: u, password: p });
-  if (res.success) { 
-      state.user = { username: u, password: p }; 
-      localStorage.setItem('azeroth_session', JSON.stringify(state.user));
-      startPing(); showScreen('character'); renderClassGrid(); 
-  }
+  if (res.success) { state.user = { username: u, password: p }; localStorage.setItem('azeroth_session', JSON.stringify(state.user)); startPing(); showScreen('character'); renderClassGrid(); }
   else document.getElementById('reg-error').textContent = res.message;
 }
 
@@ -535,22 +555,13 @@ async function handleLogin() {
   if(!u || !p) return;
   const res = await apiRequest({ action: 'login', username: u, password: p });
   if (res.success) {
-    state.user = { username: u, password: p }; 
-    localStorage.setItem('azeroth_session', JSON.stringify(state.user));
-    startPing();
-    if (res.saveData) {
-      try { const save = JSON.parse(res.saveData); state.player = save.player; state.worldMap = save.worldMap; enterTown(); }
-      catch(e) { showScreen('character'); renderClassGrid(); }
-    } else { showScreen('character'); renderClassGrid(); }
+    state.user = { username: u, password: p }; localStorage.setItem('azeroth_session', JSON.stringify(state.user)); startPing();
+    if (res.saveData) { try { const save = JSON.parse(res.saveData); state.player = save.player; state.worldMap = save.worldMap; enterTown(); } catch(e) { showScreen('character'); renderClassGrid(); } } 
+    else { showScreen('character'); renderClassGrid(); }
   } else document.getElementById('login-error').textContent = res.message;
 }
 
-function handleLogout() { 
-    clearInterval(pingInterval); 
-    state.user = null; state.player = null; state.worldMap = null; 
-    localStorage.removeItem('azeroth_session');
-    showScreen('auth'); 
-}
+function handleLogout() { clearInterval(pingInterval); state.user = null; state.player = null; state.worldMap = null; localStorage.removeItem('azeroth_session'); showScreen('auth'); }
 
 function openChangePassword() {
   document.getElementById('modal-overlay').innerHTML = `<div class="modal-box" style="max-width:400px;"><div class="modal-title">Account</div><input type="password" class="auth-input" id="old-pass" placeholder="Old Password" style="margin-bottom:10px;"><input type="password" class="auth-input" id="new-pass" placeholder="New Password" style="margin-bottom:10px;"><div class="auth-error" id="pass-error" style="margin-bottom:10px;"></div><button class="auth-btn" onclick="handleChangePassword()">Change</button><div style="text-align:center;margin-top:20px;"><button class="btn" onclick="document.getElementById('modal-overlay').classList.remove('active')">Cancel</button></div></div>`;
@@ -566,36 +577,28 @@ async function handleChangePassword() {
 
 async function saveGame(showToastMsg = false) {
   if (!state.player || !state.user) return;
-  const now = Date.now();
-  if (state.player.lastArenaReset && (now - state.player.lastArenaReset > 86400000)) { state.player.arenaPoints = 0; state.player.lastArenaReset = now; }
-  
+  const now = Date.now(); if (state.player.lastArenaReset && (now - state.player.lastArenaReset > 86400000)) { state.player.arenaPoints = 0; state.player.lastArenaReset = now; }
   const payload = { player: state.player, worldMap: state.worldMap };
   localStorage.setItem('azeroth_board_save', JSON.stringify(payload));
-  
   const res = await apiRequest({ action: 'save', username: state.user.username, password: state.user.password, saveData: JSON.stringify(payload) });
   if (showToastMsg) showToast(res.success ? 'Game saved to cloud!' : 'Cloud save failed.');
 }
 
-// --- POLLING & MULTIPLAYER ---
+// --- SYNC POLLING & MULTIPLAYER ---
 async function startPing() {
   if (pingInterval) clearInterval(pingInterval);
   const ping = async () => {
-    if (!state.user) return;
+    if (!state.user || state.mode === 'duel_sync') return; // Skip normal ping if in active duel
     const res = await apiRequest({ action: 'ping', username: state.user.username });
     
-    // Tangani Undangan Masuk
-    if (res.pendingInvites && res.pendingInvites.length > 0) {
-      res.pendingInvites.forEach(inv => showInviteModal(inv));
-    }
-    // Tangani Respon Undangan
+    if (res.pendingInvites && res.pendingInvites.length > 0) res.pendingInvites.forEach(inv => showInviteModal(inv));
+    
     if (res.inviteReplies && res.inviteReplies.length > 0) {
       res.inviteReplies.forEach(reply => {
         if(reply.status === 'accepted') {
-          showToast(`${reply.to} menerima undangan ${reply.mode}! Memasuki arena...`);
-          setupMultiplayerScene(reply.to, reply.mode);
-        } else {
-          showToast(`${reply.to} menolak undangan.`);
-        }
+          showToast(`${reply.to} menerima undangan PvP! Memasuki arena...`);
+          startPvPSync(reply.id, reply.payload, true); // P1 (Pengundang)
+        } else showToast(`${reply.to} menolak undangan.`);
       });
     }
 
@@ -604,25 +607,25 @@ async function startPing() {
       if (oRes.success) { state.onlinePlayers = oRes.players || []; renderOnlineList(); }
     }
   };
-  ping(); pingInterval = setInterval(ping, 5000); // 5 Detik
+  ping(); pingInterval = setInterval(ping, 5000); 
 }
 
 async function inviteMode(username, mode) {
   document.getElementById('modal-overlay').classList.remove('active');
   showToast(`Mengirim undangan ke ${username}... Menunggu konfirmasi.`);
-  await apiRequest({ action: 'sendInvite', username: state.user.username, target: username, mode: mode });
+  await apiRequest({ action: 'sendInvite', username: state.user.username, target: username, mode: mode, payload: getPlayerSnapshot() });
 }
 
 function showInviteModal(invite) {
   const modalHtml = `
     <div class="modal-box" style="max-width:400px; text-align:center;">
-      <div class="modal-title" style="color:var(--rare)">Undangan Masuk</div>
+      <div class="modal-title" style="color:var(--rare)">Undangan Duel Masuk</div>
       <p style="margin-bottom:20px; color:#fff; font-size:16px;">
-        <b>${invite.from}</b> mengajakmu untuk bermain dalam mode: <br>
+        <b>${invite.from}</b> (Lv ${invite.payload.p1.level} ${invite.payload.p1.class}) menantangmu dalam mode: <br>
         <span style="color:var(--gold); font-family:Cinzel; font-size:20px;">${invite.mode.toUpperCase()}</span>
       </p>
       <div style="display:flex; gap:10px; justify-content:center;">
-        <button class="btn btn-primary" onclick="respondInvite('${invite.id}', '${invite.from}', '${invite.mode}', 'accepted')">Terima & Masuk</button>
+        <button class="btn btn-primary" onclick="respondInvite('${invite.id}', '${invite.from}', '${invite.mode}', 'accepted')">Terima Duel</button>
         <button class="btn btn-danger" onclick="respondInvite('${invite.id}', '${invite.from}', '${invite.mode}', 'rejected')">Tolak</button>
       </div>
     </div>`;
@@ -632,42 +635,205 @@ function showInviteModal(invite) {
 
 async function respondInvite(id, from, mode, response) {
   document.getElementById('modal-overlay').classList.remove('active');
-  await apiRequest({ action: 'respondInvite', inviteId: id, response: response });
+  const mySnapshot = getPlayerSnapshot();
+  await apiRequest({ action: 'respondInvite', inviteId: id, response: response, payload: mySnapshot });
   if (response === 'accepted') {
-    setupMultiplayerScene(from, mode);
+    // Sebagai P2, kita perlu mensintesa initial payload untuk local state sebelum sync pertama berjalan
+    let simulatedPayload = { p2: mySnapshot, combatState: { turn: 'dice', rolls: {}, logs: ["Memasuki Arena PvP..."], p2_hp: mySnapshot.maxHp, p2_mana: mySnapshot.maxMana } };
+    startPvPSync(id, simulatedPayload, false); // P2 (Diundang)
   }
 }
 
-function setupMultiplayerScene(partnerName, mode) {
-  let allies = [];
-  const mainAlly = generateMockAlly(partnerName);
+// --- SYNC PVP COMBAT LOGIC ---
+async function startPvPSync(duelId, payload, isP1) {
+  state.player.hp = state.player.maxHp;
+  state.player.mana = state.player.maxMana;
+  state.player.abilities.forEach(a => a.currentCd = 0);
 
-  if (mode === 'duel') {
-    const enemy = { name: partnerName, icon: '🛡️', hp: state.player.maxHp, atk: state.player.atk, def: state.player.def, xp: 0, gold: 0, level: state.player.level };
-    startCombat([enemy], 'duel', null, []);
-  } 
-  else if (mode === 'dungeon') {
-    allies.push(mainAlly);
-    const enemy = spawnEnemy(rng(0, ENEMY_TEMPLATES.length-1), state.player.level, true);
-    startCombat([enemy], 'dungeon', null, allies);
-  } 
-  else if (mode === 'pvp') {
-    allies.push(mainAlly);
-    const opp1 = spawnEnemy(rng(0, ENEMY_TEMPLATES.length-1), state.player.level, true); opp1.name = 'Gladiator A'; opp1.icon = '🛡️'; opp1.isElite = true; opp1.xp = 0; opp1.gold = 0;
-    const opp2 = spawnEnemy(rng(0, ENEMY_TEMPLATES.length-1), state.player.level, true); opp2.name = 'Gladiator B'; opp2.icon = '🛡️'; opp2.isElite = true; opp2.xp = 0; opp2.gold = 0;
-    startCombat([opp1, opp2], 'pvp', null, allies);
-  } 
-  else if (mode === 'raid') {
-    allies.push(mainAlly);
-    let currentRoles = [state.player.role, mainAlly.role];
-    if(!currentRoles.includes('tank')) allies.push(generateMockAlly('Bot_Tank', 'tank'));
-    if(!currentRoles.includes('healer')) allies.push(generateMockAlly('Bot_Healer', 'healer'));
-    while(allies.length < 3) allies.push(generateMockAlly(`Bot_DPS_${allies.length}`, 'dps'));
+  state.mode = 'duel_sync';
+  state.duelData = { id: duelId, payload: payload, isP1: isP1, combatState: payload.combatState };
+
+  showScreen('combat');
+  initDicePhasePvP();
+  
+  // Karena P2 butuh info P1 dari server, render awal tunggu tarikan sync pertama
+  startDuelSyncLoop();
+}
+
+function startDuelSyncLoop() {
+  if(duelSyncInterval) clearInterval(duelSyncInterval);
+  duelSyncInterval = setInterval(async () => {
+      const res = await apiRequest({ action: 'getDuelState', inviteId: state.duelData.id });
+      if (res.success && res.payload) {
+          state.duelData.payload = res.payload;
+          state.duelData.combatState = res.payload.combatState;
+          
+          let cs = state.duelData.combatState;
+          
+          // Phase Dadu
+          if (cs.turn === 'dice') {
+              let p1Name = res.payload.p1.username;
+              let p2Name = res.payload.p2.username;
+              
+              if (cs.rolls[p1Name]) {
+                 let val1 = document.getElementById('dice-val-1');
+                 if(val1) val1.textContent = (state.user.username === p1Name) ? cs.rolls[p1Name] : '✔️';
+                 if(cs.rolls[p1Name] > 0) val1.classList.add('winner');
+              }
+              if (cs.rolls[p2Name]) {
+                 let val2 = document.getElementById('dice-val-2');
+                 if(val2) val2.textContent = (state.user.username === p2Name) ? cs.rolls[p2Name] : '✔️';
+                 if(cs.rolls[p2Name] > 0) val2.classList.add('winner');
+              }
+              renderCombatPvP(); // Pastikan unit frame ter-render
+          } 
+          // Resolusi Dadu
+          else if (document.getElementById('dice-overlay').style.display === 'flex') {
+              let p1Name = res.payload.p1.username;
+              let p2Name = res.payload.p2.username;
+              
+              document.getElementById('dice-val-1').textContent = cs.rolls[p1Name];
+              document.getElementById('dice-val-2').textContent = cs.rolls[p2Name];
+              
+              let title = document.getElementById('dice-title');
+              if (cs.turn === state.user.username) title.innerHTML = `<span style="color:var(--uncommon)">You go first!</span>`;
+              else title.innerHTML = `<span style="color:#ff5050">Enemy goes first!</span>`;
+
+              setTimeout(() => {
+                  document.getElementById('dice-overlay').style.display = 'none';
+                  renderCombatPvP();
+              }, 2000);
+          } 
+          // Phase Tarung
+          else {
+              renderCombatPvP();
+              if (cs.turn === 'end') setTimeout(endPvPCombat, 1500);
+          }
+      }
+  }, 2000); // 2 detik per siklus sinkronisasi
+}
+
+function renderCombatPvP() {
+  if (!state.duelData || !state.duelData.payload.p1 || !state.duelData.payload.p2) return;
+  const p1 = state.duelData.payload.p1;
+  const p2 = state.duelData.payload.p2;
+  const cs = state.duelData.combatState;
+  const isP1 = state.duelData.isP1;
+  const myUsername = state.user.username;
+  
+  // Identifikasi Lokal vs Musuh
+  const me = isP1 ? p1 : p2;
+  const enemy = isP1 ? p2 : p1;
+  const myHp = isP1 ? cs.p1_hp : cs.p2_hp;
+  const enemyHp = isP1 ? cs.p2_hp : cs.p1_hp;
+  const myMana = isP1 ? cs.p1_mana : cs.p2_mana;
+
+  // Render My Frame
+  document.getElementById('combat-team').innerHTML = `
+    <div class="unit-frame player-frame ${myHp<=0?'dead':''}">
+      <div class="unit-portrait"><svg viewBox="0 0 24 24" style="width:32px; fill:var(--gold)"><path d="${me.icon}"/></svg></div>
+      <div class="unit-info">
+        <div class="unit-name">${me.name} <span class="role-tag">(${me.role})</span></div>
+        <div class="resource-bar bar-hp" style="margin-bottom:2px;"><div class="bar-track" style="height:14px;"><div class="bar-fill" style="width:${(myHp/me.maxHp)*100}%"></div><div class="bar-text">${myHp}/${me.maxHp}</div></div></div>
+        <div class="resource-bar bar-mana" style="margin-bottom:0;"><div class="bar-track" style="height:8px;"><div class="bar-fill" style="width:${(myMana/me.maxMana)*100}%"></div></div></div>
+      </div>
+      <div class="unit-level">${me.level}</div>
+    </div>`;
+
+  // Render Enemy Frame
+  document.getElementById('combat-enemies').innerHTML = `
+    <div class="unit-frame target-frame ${enemyHp<=0?'dead':''}">
+      <div class="unit-portrait" style="border-color:#ff3333;"><svg viewBox="0 0 24 24" style="width:32px; fill:#ff5050"><path d="${enemy.icon}"/></svg></div>
+      <div class="unit-info">
+        <div class="unit-name" style="color:#ff5050;">${enemy.name} <span class="role-tag">(${enemy.role})</span></div>
+        <div class="resource-bar bar-hp" style="margin-bottom:2px;"><div class="bar-track" style="height:14px;"><div class="bar-fill" style="background:linear-gradient(180deg, #d33c3c, #9c1717); width:${(enemyHp/enemy.maxHp)*100}%"></div><div class="bar-text">${enemyHp}/${enemy.maxHp}</div></div></div>
+      </div>
+      <div class="unit-level">${enemy.level}</div>
+    </div>`;
+
+  // Render Abilities (Disable jika bukan giliran)
+  const isMyTurn = (cs.turn === myUsername);
+  document.getElementById('ability-bar').innerHTML = state.player.abilities.map((a, i) => 
+    `<button class="ability-btn" ${!isMyTurn || a.currentCd > 0 || state.player.mana < a.cost ? 'disabled' : ''} onclick="useAbility(${i})"><div class="ability-name">${a.name}</div><div class="ability-cost">${a.cost > 0 ? `${a.cost} MP` : 'Free'}</div>${a.currentCd > 0 ? `<div class="ability-cd">${a.currentCd}</div>` : ''}</button>`
+  ).join('');
+
+  document.getElementById('combat-log').innerHTML = cs.logs.slice(-10).map(l => `<div class="log-entry">${l}</div>`).join('');
+  const logDiv = document.getElementById('combat-log'); logDiv.scrollTop = logDiv.scrollHeight;
+}
+
+// --- PVE & PVP DICE LOGIC ---
+function initDicePhasePvP() {
+    let p1Name = state.duelData.isP1 ? state.user.username : state.duelData.payload.p1.username;
+    let p2Name = state.duelData.isP1 ? (state.duelData.payload.p2 ? state.duelData.payload.p2.username : 'Waiting...') : state.user.username;
     
-    const boss = { name: 'Raid Boss', icon: '🐉', isEmoji: true, hp: 800 * 60, atk: 25 * 60, def: 15 * 60, xp: 5000, gold: 1000, level: 60, isElite: true, phases: 3 };
-    startCombat([boss], 'raid', null, allies);
-  }
+    document.getElementById('dice-overlay').style.display = 'flex';
+    document.getElementById('dice-name-1').textContent = p1Name;
+    document.getElementById('dice-name-2').textContent = p2Name;
+    document.getElementById('dice-val-1').textContent = '🎲';
+    document.getElementById('dice-val-2').textContent = '🎲';
+    document.getElementById('dice-val-1').classList.remove('winner');
+    document.getElementById('dice-val-2').classList.remove('winner');
+    document.getElementById('btn-roll-dice').disabled = false;
+    document.getElementById('dice-title').textContent = 'Roll for Initiative!';
 }
+
+function initDicePhasePvE() {
+    state.combat.turn = 'dice';
+    document.getElementById('dice-overlay').style.display = 'flex';
+    document.getElementById('dice-name-1').textContent = state.player.name;
+    document.getElementById('dice-name-2').textContent = state.combat.enemies[0].name;
+    document.getElementById('dice-val-1').textContent = '🎲';
+    document.getElementById('dice-val-2').textContent = '🎲';
+    document.getElementById('dice-val-1').classList.remove('winner');
+    document.getElementById('dice-val-2').classList.remove('winner');
+    document.getElementById('btn-roll-dice').disabled = false;
+    document.getElementById('dice-title').textContent = 'Roll for Initiative!';
+}
+
+function handleDiceRoll() {
+    if (state.mode === 'duel_sync') executeDicePvP();
+    else executeDicePvE();
+}
+
+async function executeDicePvP() {
+    document.getElementById('btn-roll-dice').disabled = true;
+    let roll = Math.floor(Math.random() * 20) + 1;
+    
+    // Prediksi UI lokal biar responsif
+    let isP1 = state.duelData.isP1;
+    if(isP1) { document.getElementById('dice-val-1').textContent = roll; document.getElementById('dice-val-1').classList.add('winner'); }
+    else { document.getElementById('dice-val-2').textContent = roll; document.getElementById('dice-val-2').classList.add('winner'); }
+    
+    let cs = state.duelData.combatState;
+    cs.rolls[state.user.username] = roll;
+
+    // Server akan mengkalkulasi pemenang ketika 2 data roll masuk
+    await apiRequest({ action: 'duelAction', inviteId: state.duelData.id, combatState: cs });
+}
+
+function executeDicePvE() {
+    document.getElementById('btn-roll-dice').disabled = true;
+    let p1Roll = Math.floor(Math.random() * 20) + 1;
+    let p2Roll = Math.floor(Math.random() * 20) + 1;
+
+    document.getElementById('dice-val-1').textContent = p1Roll; document.getElementById('dice-val-1').classList.add('winner');
+    document.getElementById('dice-val-2').textContent = p2Roll; document.getElementById('dice-val-2').classList.add('winner');
+
+    if (p1Roll >= p2Roll) {
+        state.combat.turn = 'player';
+        document.getElementById('dice-title').innerHTML = '<span style="color:var(--uncommon)">You go first!</span>';
+    } else {
+        state.combat.turn = 'enemy';
+        document.getElementById('dice-title').innerHTML = '<span style="color:#ff5050">Enemy goes first!</span>';
+    }
+
+    setTimeout(() => {
+        document.getElementById('dice-overlay').style.display = 'none';
+        renderCombat();
+        if (state.combat.turn === 'enemy') setTimeout(enemyTurn, 1000);
+    }, 2000);
+}
+
 
 // --- CHARACTER CREATION & RETALENT ---
 function renderClassGrid() {
@@ -680,10 +846,7 @@ function renderClassGrid() {
     card.onclick = () => openSpecModal(key); grid.appendChild(card);
   });
 }
-document.querySelectorAll('.role-tab').forEach(t => t.onclick = () => {
-  document.querySelectorAll('.role-tab').forEach(x => x.classList.remove('active'));
-  t.classList.add('active'); state.classFilter = t.dataset.filter; renderClassGrid();
-});
+document.querySelectorAll('.role-tab').forEach(t => t.onclick = () => { document.querySelectorAll('.role-tab').forEach(x => x.classList.remove('active')); t.classList.add('active'); state.classFilter = t.dataset.filter; renderClassGrid(); });
 
 function openSpecModal(classKey) {
   const cls = CLASSES[classKey]; const overlay = document.getElementById('modal-overlay');
@@ -691,35 +854,14 @@ function openSpecModal(classKey) {
   overlay.innerHTML = `<div class="modal-box"><div class="modal-title">${cls.name} Specs</div><div>${specCards}</div><div style="text-align:center;margin-top:20px;"><button class="btn" onclick="document.getElementById('modal-overlay').classList.remove('active')">Back</button></div></div>`;
   overlay.classList.add('active');
 }
-function promptCustomName(classKey, specKey) {
-  document.getElementById('modal-overlay').innerHTML = `<div class="modal-box" style="max-width:400px;"><div class="modal-title">Character Info</div><input type="text" id="char-name" class="auth-input" placeholder="Character Name" style="margin-bottom:10px;"><input type="text" id="char-avatar" class="auth-input" placeholder="Avatar Image URL (Optional)" style="margin-bottom:20px;"><button class="auth-btn" onclick="createCharacter('${classKey}', '${specKey}')">Enter World</button></div>`;
-}
+function promptCustomName(classKey, specKey) { document.getElementById('modal-overlay').innerHTML = `<div class="modal-box" style="max-width:400px;"><div class="modal-title">Character Info</div><input type="text" id="char-name" class="auth-input" placeholder="Character Name" style="margin-bottom:10px;"><input type="text" id="char-avatar" class="auth-input" placeholder="Avatar Image URL (Optional)" style="margin-bottom:20px;"><button class="auth-btn" onclick="createCharacter('${classKey}', '${specKey}')">Enter World</button></div>`; }
 function createCharacter(classKey, specKey) {
-  const name = document.getElementById('char-name').value.trim() || state.user.username;
-  const avatarUrl = document.getElementById('char-avatar').value.trim();
+  const name = document.getElementById('char-name').value.trim() || state.user.username; const avatarUrl = document.getElementById('char-avatar').value.trim();
   const cls = CLASSES[classKey]; const spec = cls.specs[specKey]; const mods = ROLE_MODS[spec.role];
-  
-  const baseStats = { 
-      hp: Math.floor(cls.baseStats.hp * mods.hpMult), 
-      mana: Math.floor(cls.baseStats.mana * mods.manaMult), 
-      atk: Math.floor(cls.baseStats.atk * mods.atkMult), 
-      def: Math.floor(cls.baseStats.def * mods.defMult), 
-      crit: cls.baseStats.crit, speed: cls.baseStats.speed 
-  };
-  
-  const template = ROLE_ABILITY_TEMPLATES[spec.role];
-  const abilities = template.map((t, i) => ({ ...t, name: spec.abilities[i], currentCd: 0 }));
-  
-  state.player = { 
-      class: classKey, spec: specKey, role: spec.role, name, avatarUrl, level: 1, xp: 0, xpNext: 100, 
-      hp: baseStats.hp, maxHp: baseStats.hp, mana: baseStats.mana, maxMana: baseStats.mana, 
-      atk: baseStats.atk, def: baseStats.def, crit: baseStats.crit, speed: baseStats.speed, 
-      gold: 50, honor: 0, arenaPoints: 0, lastArenaReset: Date.now(), 
-      inventory: [], equipped: {}, abilities: abilities, buffs: [], hpPotions: 0, manaPotions: 0 
-  };
-  
-  document.getElementById('modal-overlay').classList.remove('active');
-  saveGame(true); enterTown();
+  const baseStats = { hp: Math.floor(cls.baseStats.hp * mods.hpMult), mana: Math.floor(cls.baseStats.mana * mods.manaMult), atk: Math.floor(cls.baseStats.atk * mods.atkMult), def: Math.floor(cls.baseStats.def * mods.defMult), crit: cls.baseStats.crit, speed: cls.baseStats.speed };
+  const template = ROLE_ABILITY_TEMPLATES[spec.role]; const abilities = template.map((t, i) => ({ ...t, name: spec.abilities[i], currentCd: 0 }));
+  state.player = { class: classKey, spec: specKey, role: spec.role, name, avatarUrl, level: 1, xp: 0, xpNext: 100, hp: baseStats.hp, maxHp: baseStats.hp, mana: baseStats.mana, maxMana: baseStats.mana, atk: baseStats.atk, def: baseStats.def, crit: baseStats.crit, speed: baseStats.speed, gold: 50, honor: 0, arenaPoints: 0, lastArenaReset: Date.now(), inventory: [], equipped: {}, abilities: abilities, buffs: [], hpPotions: 0, manaPotions: 0 };
+  document.getElementById('modal-overlay').classList.remove('active'); saveGame(true); enterTown();
 }
 
 function openRetalentModal() {
@@ -728,57 +870,27 @@ function openRetalentModal() {
     const isCurrent = state.player.spec === specKey;
     return `<div class="spec-card" style="${isCurrent ? 'border-color:var(--gold);' : ''}" onclick="${isCurrent ? '' : `confirmRetalent('${specKey}')`}">
       <div style="width:48px;height:48px;background:var(--bg-2);border-radius:8px;display:flex;align-items:center;justify-content:center;color:${spec.role==='tank'?'#4d7eff':spec.role==='healer'?'#1eff00':'#ff6060'};font-size:10px;font-weight:bold;">${spec.role.toUpperCase()}</div>
-      <div>
-        <div style="font-family:Cinzel;font-size:16px;color:${isCurrent ? 'var(--gold)' : '#fff'};font-weight:bold;">${spec.name} ${isCurrent ? '(Active)' : ''}</div>
-        <div style="font-size:12px;color:var(--text-dim);">${spec.desc}</div>
-      </div>
+      <div><div style="font-family:Cinzel;font-size:16px;color:${isCurrent ? 'var(--gold)' : '#fff'};font-weight:bold;">${spec.name} ${isCurrent ? '(Active)' : ''}</div><div style="font-size:12px;color:var(--text-dim);">${spec.desc}</div></div>
     </div>`;
   }).join('');
-
-  const modalHtml = `
-    <div class="modal-box" style="max-width:500px;">
-      <div class="modal-title">Retalent - ${cls.name}</div>
-      <p style="text-align:center; color:var(--text-dim); font-size:12px; margin-bottom:15px;">Ganti spesialisasi dalam ruang lingkup satu Class. Base stats & kemampuan akan otomatis dikonfigurasi ulang.</p>
-      <div>${specCards}</div>
-      <div style="text-align:center;margin-top:20px;">
-        <button class="btn" onclick="document.getElementById('modal-overlay').classList.remove('active')">Cancel</button>
-      </div>
-    </div>`;
-  document.getElementById('modal-overlay').innerHTML = modalHtml;
+  document.getElementById('modal-overlay').innerHTML = `<div class="modal-box" style="max-width:500px;"><div class="modal-title">Retalent - ${cls.name}</div><p style="text-align:center; color:var(--text-dim); font-size:12px; margin-bottom:15px;">Ganti spesialisasi dalam ruang lingkup satu Class. Base stats & kemampuan akan otomatis dikonfigurasi ulang.</p><div>${specCards}</div><div style="text-align:center;margin-top:20px;"><button class="btn" onclick="document.getElementById('modal-overlay').classList.remove('active')">Cancel</button></div></div>`;
   document.getElementById('modal-overlay').classList.add('active');
 }
-
 function confirmRetalent(newSpecKey) {
-  const cls = CLASSES[state.player.class];
-  const spec = cls.specs[newSpecKey];
-  const mods = ROLE_MODS[spec.role];
-
-  state.player.spec = newSpecKey;
-  state.player.role = spec.role;
-
+  const cls = CLASSES[state.player.class]; const spec = cls.specs[newSpecKey]; const mods = ROLE_MODS[spec.role];
+  state.player.spec = newSpecKey; state.player.role = spec.role;
   state.player.atk = Math.floor(cls.baseStats.atk * mods.atkMult) + ((state.player.level - 1) * 2);
   state.player.def = Math.floor(cls.baseStats.def * mods.defMult); 
   state.player.maxMana = Math.floor(cls.baseStats.mana * mods.manaMult) + ((state.player.level - 1) * 10);
-  
   updateMaxHp();
-  
-  const template = ROLE_ABILITY_TEMPLATES[spec.role];
-  state.player.abilities = template.map((t, i) => ({ ...t, name: spec.abilities[i], currentCd: 0 }));
-
-  state.player.hp = state.player.maxHp;
-  state.player.mana = state.player.maxMana;
-
-  document.getElementById('modal-overlay').classList.remove('active');
-  showToast(`Berhasil merubah spesialisasi ke ${spec.name}!`);
-  
-  saveGame(true);
-  renderPlayerPanel();
+  const template = ROLE_ABILITY_TEMPLATES[spec.role]; state.player.abilities = template.map((t, i) => ({ ...t, name: spec.abilities[i], currentCd: 0 }));
+  state.player.hp = state.player.maxHp; state.player.mana = state.player.maxMana;
+  document.getElementById('modal-overlay').classList.remove('active'); showToast(`Berhasil merubah spesialisasi ke ${spec.name}!`); saveGame(true); renderPlayerPanel();
 }
 
 
 // --- TOWN & FEATURES ---
 function enterTown() { showScreen('town'); renderPlayerPanel(); renderActionArea(); renderOnlineList(); }
-
 function renderPlayerPanel() {
   const p = state.player; const panel = document.getElementById('player-panel');
   const avatarHtml = p.avatarUrl ? `<img src="${p.avatarUrl}" alt="Avatar">` : `<svg viewBox="0 0 24 24"><path d="${CLASS_ICONS[p.class]}"/></svg>`;
@@ -800,67 +912,26 @@ function renderPlayerPanel() {
 
 function renderActionArea() {
   const p = state.player;
-  
   document.getElementById('action-area').innerHTML = `
     <div class="action-card" onclick="openZoneModal()">
-      <div class="action-title">Adventure</div><div class="action-desc">Pilih zona, buka tile, jelajahi peta dunia dan dapatkan loot. (Murni Leveling)</div>
+      <div class="action-title">Adventure</div><div class="action-desc">Pilih zona, buka tile, jelajahi peta dunia dan dapatkan loot.</div>
     </div>
     <div class="action-card ${p.level<5?'disabled':''}" onclick="${p.level<5?'':'enterDungeonInstance(state.player.level)'}">
       <div class="action-title" style="color:var(--rare)">Dungeon</div><div class="action-desc">Solo Run. Boss drop item Epic.</div><div class="action-meta">${p.level<5?'Need Lv 5':'Lv 5+'}</div>
     </div>
     <div class="action-card ${p.level<15?'disabled':''}" onclick="${p.level<15?'':'enterRaidInstance(state.player.level)'}">
       <div class="action-title" style="color:var(--epic)">Raid</div><div class="action-desc">Boss 3 Phase. Dijamin drop Legendary.</div><div class="action-meta">${p.level<15?'Need Lv 15':'Lv 15+'}</div>
-    </div>
-    <div class="action-card ${p.level<10?'disabled':''}" onclick="${p.level<10?'':'enterPvPInstance()'}">
-      <div class="action-title" style="color:var(--health)">PvP Arena</div><div class="action-desc">Solo Duel, dapatkan Honor & Arena Points.</div><div class="action-meta">${p.level<10?'Need Lv 10':'Lv 10+'}</div>
     </div>`;
 }
 
 function renderOnlineList() {
   const c = document.getElementById('online-list-container');
   if (state.onlinePlayers.length === 0) { c.innerHTML = `<div class="stat-header" style="text-align:left; padding-left:10px;">Online Players</div><p style="color:var(--text-dim);font-size:12px;padding:10px;">Tidak ada pemain lain online.</p>`; return; }
-  
   c.innerHTML = `<div class="stat-header" style="text-align:left; padding-left:10px;">Online Players (${state.onlinePlayers.length})</div>` + state.onlinePlayers.map(u => `
-    <div class="online-player" onclick="openInteractModal('${u}')">
-      <span><span class="online-dot"></span>${u}</span>
-      <span style="font-size:10px; color:var(--text-mute);">[Klik untuk Invite]</span>
-    </div>
+    <div class="online-player" onclick="openInteractModal('${u}')"><span><span class="online-dot"></span>${u}</span><span style="font-size:10px; color:var(--text-mute);">[Klik untuk Invite PvP]</span></div>
   `).join('');
 }
 
-function openInteractModal(username) {
-  if (username === state.player.name || username === state.user.username) return showToast("Tidak bisa invite diri sendiri.");
-  
-  const modalHtml = `
-    <div class="modal-box" style="max-width:400px; text-align:center;">
-      <div class="modal-title" style="font-size:18px;">Interact: <span style="color:#fff">${username}</span></div>
-      <div style="display:flex; flex-direction:column; gap:10px; margin-top:20px;">
-        <button class="btn" style="padding:12px; border-color:var(--honor); color:var(--honor)" onclick="inviteMode('${username}', 'duel')">⚔️ Duel (1v1)</button>
-        <button class="btn" style="padding:12px; border-color:var(--rare); color:var(--rare)" onclick="inviteMode('${username}', 'dungeon')">🚪 Invite Dungeon (Co-op)</button>
-        <button class="btn" style="padding:12px; border-color:var(--health); color:var(--health)" onclick="inviteMode('${username}', 'pvp')">🛡️ Invite PvP Arena (2v2)</button>
-        <button class="btn" style="padding:12px; border-color:var(--epic); color:var(--epic)" onclick="inviteMode('${username}', 'raid')">🐉 Invite Raid (Auto-fill Team)</button>
-      </div>
-      <div style="margin-top:20px;">
-        <button class="btn" style="width:100%" onclick="document.getElementById('modal-overlay').classList.remove('active')">Cancel</button>
-      </div>
-    </div>
-  `;
-  document.getElementById('modal-overlay').innerHTML = modalHtml;
-  document.getElementById('modal-overlay').classList.add('active');
-}
-
-function generateMockAlly(name, roleForce = null) {
-    const role = roleForce || pick(['tank', 'healer', 'dps', 'dps']); 
-    const clsList = Object.keys(CLASSES).filter(k => Object.values(CLASSES[k].specs).some(s => s.role === role));
-    const cls = pick(clsList);
-    return {
-        name: name, role: role, class: cls, icon: CLASS_ICONS[cls],
-        level: state.player.level,
-        hp: state.player.maxHp * (role==='tank'?1.5:1),
-        maxHp: state.player.maxHp * (role==='tank'?1.5:1),
-        atk: state.player.atk, def: state.player.def
-    };
-}
 
 // --- SHOP / VENDOR (BUY & SELL) ---
 function openShop() {
@@ -875,68 +946,32 @@ function openShop() {
 
 function renderShopModal(activeTab = 'buy') {
   const p = state.player;
-  
   const buyHtml = state.tempShopItems.map((it, i) => {
     if (it.isPotion) return `<div class="item-card" style="--rarity-color:var(--common)" onclick="buyItem(${i}, ${it.price})"><div class="item-icon">${it.icon}</div><div class="item-name">${it.name}</div><div class="item-slot">Consumable</div><div class="item-price">${it.price} Gold</div></div>`;
     const price = Math.floor((it.rarity === 'common' ? 50 : it.rarity === 'uncommon' ? 150 : it.rarity === 'rare' ? 400 : 1000) * (1 + it.level * 0.1));
     return `<div class="item-card" style="--rarity-color:var(--${it.rarity})" onclick="buyItem(${i}, ${price})"><div class="item-icon">${it.icon}</div><div class="item-name">${it.name}</div><div class="item-slot">${it.rarity} Lv ${it.level}</div><div class="item-price">${price} Gold</div></div>`;
   }).join('');
-
   const sellHtml = p.inventory.length > 0 ? p.inventory.map(it => {
     const basePrice = (it.rarity === 'common' ? 50 : it.rarity === 'uncommon' ? 150 : it.rarity === 'rare' ? 400 : it.rarity === 'epic' ? 1000 : 2500);
     const sellPrice = Math.floor((basePrice * (1 + it.level * 0.1)) * 0.4); 
     return `<div class="item-card" style="--rarity-color:var(--${it.rarity})" onclick="sellItem('${it.id}', ${sellPrice})"><div class="item-icon">${it.icon}</div><div class="item-name">${it.name}</div><div class="item-slot">${it.rarity} Lv ${it.level}</div><div class="item-price" style="color:#aaa;">Sell: <span style="color:var(--gold-bright)">${sellPrice} G</span></div></div>`;
   }).join('') : `<div style="grid-column:1/-1; text-align:center; color:#888; padding:20px;">Backpack kosong. Tidak ada yang bisa dijual.</div>`;
 
-  const modalHtml = `
-    <div class="modal-box" style="max-width:800px;">
-      <div class="modal-title">Vendor <span style="font-size:14px; color:var(--gold-bright); float:right; margin-top:8px;">${p.gold} Gold</span></div>
-      <div class="auth-tabs" style="margin-bottom:15px;">
-        <div class="auth-tab ${activeTab === 'buy' ? 'active' : ''}" onclick="renderShopModal('buy')">Buy</div>
-        <div class="auth-tab ${activeTab === 'sell' ? 'active' : ''}" onclick="renderShopModal('sell')">Sell</div>
-      </div>
-      <div id="shop-buy" style="display:${activeTab === 'buy' ? 'block' : 'none'};">
-        <div class="shop-grid">${buyHtml}</div>
-      </div>
-      <div id="shop-sell" style="display:${activeTab === 'sell' ? 'block' : 'none'};">
-         <div class="shop-grid">${sellHtml}</div>
-      </div>
-      <div style="text-align:center;margin-top:20px;">
-        <button class="btn" onclick="document.getElementById('modal-overlay').classList.remove('active')">Close</button>
-      </div>
-    </div>
-  `;
-  document.getElementById('modal-overlay').innerHTML = modalHtml;
+  document.getElementById('modal-overlay').innerHTML = `<div class="modal-box" style="max-width:800px;"><div class="modal-title">Vendor <span style="font-size:14px; color:var(--gold-bright); float:right; margin-top:8px;">${p.gold} Gold</span></div><div class="auth-tabs" style="margin-bottom:15px;"><div class="auth-tab ${activeTab === 'buy' ? 'active' : ''}" onclick="renderShopModal('buy')">Buy</div><div class="auth-tab ${activeTab === 'sell' ? 'active' : ''}" onclick="renderShopModal('sell')">Sell</div></div><div id="shop-buy" style="display:${activeTab === 'buy' ? 'block' : 'none'};"><div class="shop-grid">${buyHtml}</div></div><div id="shop-sell" style="display:${activeTab === 'sell' ? 'block' : 'none'};"><div class="shop-grid">${sellHtml}</div></div><div style="text-align:center;margin-top:20px;"><button class="btn" onclick="document.getElementById('modal-overlay').classList.remove('active')">Close</button></div></div>`;
   document.getElementById('modal-overlay').classList.add('active');
 }
 
 function buyItem(idx, price) {
   if (state.player.gold < price) return showToast('Gold tidak cukup!');
   state.player.gold -= price; const it = state.tempShopItems[idx];
-  if (it.isPotion) {
-    if (it.type === 'hp') state.player.hpPotions = (state.player.hpPotions || 0) + 1;
-    else state.player.manaPotions = (state.player.manaPotions || 0) + 1;
-  } else { state.player.inventory.push(it); }
-  showToast('Item dibeli!'); 
-  saveGame(); 
-  renderPlayerPanel();
-  renderShopModal('buy');
+  if (it.isPotion) { if (it.type === 'hp') state.player.hpPotions = (state.player.hpPotions || 0) + 1; else state.player.manaPotions = (state.player.manaPotions || 0) + 1; } 
+  else state.player.inventory.push(it);
+  showToast('Item dibeli!'); saveGame(); renderPlayerPanel(); renderShopModal('buy');
 }
-
 function sellItem(itemId, price) {
-  const p = state.player;
-  const index = p.inventory.findIndex(i => i.id === itemId);
-  if(index > -1) {
-    const item = p.inventory[index];
-    p.inventory.splice(index, 1);
-    p.gold += price;
-    showToast('Terjual: ' + item.name + ' (' + price + ' G)');
-    saveGame();
-    renderPlayerPanel();
-    renderShopModal('sell');
-  }
+  const index = state.player.inventory.findIndex(i => i.id === itemId);
+  if(index > -1) { state.player.gold += price; state.player.inventory.splice(index, 1); showToast('Item Terjual (' + price + ' G)'); saveGame(); renderPlayerPanel(); renderShopModal('sell'); }
 }
-
 function openPvPShop() {
   const tiers = [{ name: 'Gladiator Gear', cost: 500, statMult: 1.5 }, { name: 'Vengeful Gear', cost: 1500, statMult: 2.0 }, { name: 'Wrathful Gear', cost: 5000, statMult: 3.0 }];
   state.tempPvPItems = tiers.map(t => generateItem(state.player.level, 'epic', t.name, t.statMult));
@@ -979,9 +1014,8 @@ function generateWorldMap(zone) {
     
     const tile = { x, y, type, revealed: dist <= 2, cleared: false };
     if (type === 'forest' || type === 'mountain') {
-      const enemyIdx = pick(zone.enemies); const isElite = type === 'mountain';
-      const mobLevel = isElite ? zone.minLevel + 2 : zone.minLevel;
-      tile.enemy = spawnEnemy(enemyIdx, mobLevel, isElite);
+      const isElite = type === 'mountain'; const mobLevel = isElite ? zone.minLevel + 2 : zone.minLevel;
+      tile.enemy = spawnEnemy(pick(zone.enemies), mobLevel, isElite);
     }
     tiles.push(tile);
   }
@@ -990,52 +1024,24 @@ function generateWorldMap(zone) {
 
 function spawnEnemy(templateIdx, level, isElite = false) {
   const t = ENEMY_TEMPLATES[templateIdx]; const scale = 1 + (level - 1) * 0.5; const eliteMult = isElite ? 1.8 : 1.0;
-  return { name: (isElite ? 'Elite ' : '') + t.name, icon: t.icon, hp: Math.floor(t.baseHp * scale * eliteMult), atk: Math.floor(t.baseAtk * scale * eliteMult), def: Math.floor(t.baseDef * scale * (isElite ? 1.3 : 1.0)), xp: Math.floor((10 + level * 4) * (isElite ? 2.5 : 1.5)), gold: rng(25, 100), color: t.color, isElite, level };
+  return { name: (isElite ? 'Elite ' : '') + t.name, icon: t.icon, hp: Math.floor(t.baseHp * scale * eliteMult), maxHp: Math.floor(t.baseHp * scale * eliteMult), atk: Math.floor(t.baseAtk * scale * eliteMult), def: Math.floor(t.baseDef * scale * (isElite ? 1.3 : 1.0)), xp: Math.floor((10 + level * 4) * (isElite ? 2.5 : 1.5)), gold: rng(25, 100), color: t.color, isElite, level };
 }
 
 function renderMap() {
   const canvas = document.getElementById('map-canvas'); if(!canvas) return; const ctx = canvas.getContext('2d');
   const map = state.worldMap; const tileW = canvas.width / map.cols; const tileH = canvas.height / map.rows;
-  
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  
   map.tiles.forEach(t => {
     const px = t.x * tileW, py = t.y * tileH;
-    
-    if (!t.revealed) {
-      ctx.fillStyle = '#05050a'; ctx.fillRect(px, py, tileW, tileH);
-      ctx.strokeStyle = '#111'; ctx.strokeRect(px, py, tileW, tileH);
-      return;
-    }
-
-    if (t.type === 'town') ctx.fillStyle = '#1c2438';
-    else if (t.type === 'plains' || t.cleared) ctx.fillStyle = '#111811';
-    else if (t.type === 'forest') ctx.fillStyle = '#102210';
-    else if (t.type === 'mountain') ctx.fillStyle = '#301818';
-    
-    ctx.fillRect(px, py, tileW, tileH);
-    ctx.strokeStyle = '#333'; ctx.lineWidth = 1; ctx.strokeRect(px, py, tileW, tileH);
-
+    if (!t.revealed) { ctx.fillStyle = '#05050a'; ctx.fillRect(px, py, tileW, tileH); ctx.strokeStyle = '#111'; ctx.strokeRect(px, py, tileW, tileH); return; }
+    if (t.type === 'town') ctx.fillStyle = '#1c2438'; else if (t.type === 'plains' || t.cleared) ctx.fillStyle = '#111811'; else if (t.type === 'forest') ctx.fillStyle = '#102210'; else if (t.type === 'mountain') ctx.fillStyle = '#301818';
+    ctx.fillRect(px, py, tileW, tileH); ctx.strokeStyle = '#333'; ctx.lineWidth = 1; ctx.strokeRect(px, py, tileW, tileH);
     ctx.font = '24px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     let icon = '';
     if (t.type === 'town') icon = '🏰';
-    else if (t.enemy && !t.cleared) {
-      icon = t.enemy.icon;
-      if (t.enemy.isElite) { ctx.strokeStyle = '#ff3333'; ctx.lineWidth = 2; ctx.strokeRect(px+4, py+4, tileW-8, tileH-8); }
-    }
-    
-    if(icon) {
-        ctx.shadowColor = "black";
-        ctx.shadowBlur = 4;
-        ctx.fillText(icon, px + tileW/2, py + tileH/2);
-        ctx.shadowBlur = 0;
-    }
-
-    if (t.x === map.playerX && t.y === map.playerY) {
-      ctx.fillStyle = 'rgba(255, 217, 102, 0.4)'; ctx.fillRect(px, py, tileW, tileH);
-      ctx.fillStyle = '#ffb830'; ctx.beginPath(); ctx.arc(px + tileW/2, py + tileH/2, 6, 0, Math.PI * 2); ctx.fill();
-    }
-    
+    else if (t.enemy && !t.cleared) { icon = t.enemy.icon; if (t.enemy.isElite) { ctx.strokeStyle = '#ff3333'; ctx.lineWidth = 2; ctx.strokeRect(px+4, py+4, tileW-8, tileH-8); } }
+    if(icon) { ctx.shadowColor = "black"; ctx.shadowBlur = 4; ctx.fillText(icon, px + tileW/2, py + tileH/2); ctx.shadowBlur = 0; }
+    if (t.x === map.playerX && t.y === map.playerY) { ctx.fillStyle = 'rgba(255, 217, 102, 0.4)'; ctx.fillRect(px, py, tileW, tileH); ctx.fillStyle = '#ffb830'; ctx.beginPath(); ctx.arc(px + tileW/2, py + tileH/2, 6, 0, Math.PI * 2); ctx.fill(); }
     const dist = Math.abs(t.x - map.playerX) + Math.abs(t.y - map.playerY);
     if (dist === 1) { ctx.strokeStyle = 'rgba(255, 200, 0, 0.7)'; ctx.lineWidth = 2; ctx.strokeRect(px+1, py+1, tileW-2, tileH-2); }
   });
@@ -1043,24 +1049,19 @@ function renderMap() {
 
 document.addEventListener('click', e => {
   if (state.currentScreen !== 'map' || e.target.id !== 'map-canvas') return;
-  const rect = e.target.getBoundingClientRect();
-  const tx = Math.floor(((e.clientX - rect.left) / rect.width) * state.worldMap.cols);
-  const ty = Math.floor(((e.clientY - rect.top) / rect.height) * state.worldMap.rows);
+  const rect = e.target.getBoundingClientRect(); const tx = Math.floor(((e.clientX - rect.left) / rect.width) * state.worldMap.cols); const ty = Math.floor(((e.clientY - rect.top) / rect.height) * state.worldMap.rows);
   handleTileClick(tx, ty);
 });
 
 function handleTileClick(tx, ty) {
   const map = state.worldMap; const tile = map.tiles.find(t => t.x === tx && t.y === ty);
-  if (!tile || !tile.revealed) return;
-  const dist = Math.abs(tx - map.playerX) + Math.abs(ty - map.playerY);
-  
+  if (!tile || !tile.revealed) return; const dist = Math.abs(tx - map.playerX) + Math.abs(ty - map.playerY);
   let infoHtml = `<div style="color:var(--gold);font-weight:bold;font-size:16px;text-transform:uppercase;">${tile.type}</div>`;
   if (tile.enemy && !tile.cleared) infoHtml += `<div style="margin:10px 0;"><span style="color:${tile.enemy.isElite?'#ff5050':'#fff'}">${tile.enemy.icon} ${tile.enemy.name}</span><br>Lv ${tile.enemy.level} | HP: ${tile.enemy.hp}</div>`;
   else if (tile.type === 'town') infoHtml += `<div style="margin:10px 0; color:#aaa;">Safe zone. Heal here.</div>`;
   
   if (dist === 1) infoHtml += `<button class="btn btn-primary" style="width:100%;margin-top:10px;" onclick="moveToTile(${tx}, ${ty})">Move Here</button>`;
   else if (dist === 0 && tile.type === 'town') infoHtml += `<button class="btn" style="width:100%;margin-top:10px;" onclick="restAtTown()">Rest</button>`;
-  
   document.getElementById('tile-info').innerHTML = infoHtml;
 }
 
@@ -1084,196 +1085,91 @@ function goBackFromInv() { showScreen(state.prevScreen || 'town'); }
 
 // --- INVENTORY & EQUIPPING ---
 function updateMaxHp() {
-  const cls = CLASSES[state.player.class];
-  const mods = ROLE_MODS[state.player.role];
+  const cls = CLASSES[state.player.class]; const mods = ROLE_MODS[state.player.role];
   state.player.maxHp = Math.floor(cls.baseStats.hp * mods.hpMult) + getEquipBonus('hp') + ((state.player.level - 1) * 20);
   if(state.player.hp > state.player.maxHp) state.player.hp = state.player.maxHp;
 }
 
-function getTotalItemLevel() {
-  let total = state.player.level * 5;
-  Object.values(state.player.equipped).forEach(item => { if (item) total += item.level * 10; });
-  return total;
-}
-function getEquipBonus(stat) {
-  let total = 0;
-  Object.values(state.player.equipped).forEach(item => { if (item && item.stats && item.stats[stat]) total += item.stats[stat]; });
-  return total;
-}
+function getTotalItemLevel() { let total = state.player.level * 5; Object.values(state.player.equipped).forEach(item => { if (item) total += item.level * 10; }); return total; }
+function getEquipBonus(stat) { let total = 0; Object.values(state.player.equipped).forEach(item => { if (item && item.stats && item.stats[stat]) total += item.stats[stat]; }); return total; }
 
 function renderInventory() {
-  const p = state.player;
-  const slotsLeft = ['head', 'shoulders', 'chest', 'hands'];
-  const slotsRight = ['legs', 'feet', 'weapon', 'offhand'];
+  const p = state.player; const slotsLeft = ['head', 'shoulders', 'chest', 'hands']; const slotsRight = ['legs', 'feet', 'weapon', 'offhand'];
   
-  let htmlLeft = slotsLeft.map(slot => {
-    const item = p.equipped[slot];
-    const icon = item ? item.icon : (SLOT_ICONS[slot] || '❔');
-    const borderCls = item ? `r-${item.rarity}` : '';
+  const generateSlots = (slots) => slots.map(slot => {
+    const item = p.equipped[slot]; const icon = item ? item.icon : (SLOT_ICONS[slot] || '❔'); const borderCls = item ? `r-${item.rarity}` : '';
     const tooltip = item ? `<div class="wow-tooltip"><div class="tt-name" style="color:var(--${item.rarity})">${item.name}</div><div class="tt-type">Slot: ${slot} | Lv ${item.level}</div><div class="tt-stat">${Object.entries(item.stats).map(([k,v])=>`+${v} ${k.toUpperCase()}`).join('<br>')}</div></div>` : `<div class="wow-tooltip">${slot.toUpperCase()}</div>`;
     return `<div class="wow-equip-slot ${item?'filled':''} ${borderCls}" onclick="${item ? `unequipItem('${slot}')` : ''}">${icon}${tooltip}</div>`;
   }).join('');
   
-  let htmlRight = slotsRight.map(slot => {
-    const item = p.equipped[slot];
-    const icon = item ? item.icon : (SLOT_ICONS[slot] || '❔');
-    const borderCls = item ? `r-${item.rarity}` : '';
-    const tooltip = item ? `<div class="wow-tooltip"><div class="tt-name" style="color:var(--${item.rarity})">${item.name}</div><div class="tt-type">Slot: ${slot} | Lv ${item.level}</div><div class="tt-stat">${Object.entries(item.stats).map(([k,v])=>`+${v} ${k.toUpperCase()}`).join('<br>')}</div></div>` : `<div class="wow-tooltip">${slot.toUpperCase()}</div>`;
-    return `<div class="wow-equip-slot ${item?'filled':''} ${borderCls}" onclick="${item ? `unequipItem('${slot}')` : ''}">${icon}${tooltip}</div>`;
-  }).join('');
-  
-  document.getElementById('equip-left-col').innerHTML = htmlLeft;
-  document.getElementById('equip-right-col').innerHTML = htmlRight;
-  
-  const avatarHtml = p.avatarUrl ? `<img src="${p.avatarUrl}" alt="Avatar" style="width:100%;height:100%;object-fit:cover;border-radius:4px;">` : `<svg viewBox="0 0 24 24"><path d="${CLASS_ICONS[p.class]}"/></svg>`;
-  document.getElementById('char-center-col').innerHTML = avatarHtml;
-  
-  const totalAtk = p.atk + getEquipBonus('atk');
-  const totalDef = p.def + getEquipBonus('def');
+  document.getElementById('equip-left-col').innerHTML = generateSlots(slotsLeft);
+  document.getElementById('equip-right-col').innerHTML = generateSlots(slotsRight);
+  document.getElementById('char-center-col').innerHTML = p.avatarUrl ? `<img src="${p.avatarUrl}" alt="Avatar" style="width:100%;height:100%;object-fit:cover;border-radius:4px;">` : `<svg viewBox="0 0 24 24"><path d="${CLASS_ICONS[p.class]}"/></svg>`;
   
   document.getElementById('stats-panel-col').innerHTML = `
     <div style="text-align:center; font-family:Cinzel; font-size:16px; color:var(--gold); margin-bottom:5px;">${p.name}</div>
     <div style="text-align:center; font-size:10px; color:var(--text-dim); margin-bottom:15px; text-transform:uppercase;">Level ${p.level} ${p.spec} ${p.class}</div>
-    
-    <div class="stat-header">Item Level</div>
-    <div class="stat-ilvl">${getTotalItemLevel()}</div>
-    
+    <div class="stat-header">Item Level</div><div class="stat-ilvl">${getTotalItemLevel()}</div>
     <div class="stat-header">Attributes</div>
-    <div class="stat-row"><span>Strength/Int:</span><span class="val">${totalAtk}</span></div>
+    <div class="stat-row"><span>Strength/Int:</span><span class="val">${p.atk + getEquipBonus('atk')}</span></div>
     <div class="stat-row"><span>Stamina (HP):</span><span class="val">${p.maxHp}</span></div>
-    <div class="stat-row"><span>Armor:</span><span class="val">${totalDef}</span></div>
-    
-    <div class="stat-header">Enhancements</div>
-    <div class="stat-row"><span>Critical Strike:</span><span class="val">${p.crit}%</span></div>
-    <div class="stat-row"><span>Haste:</span><span class="val">${p.speed}%</span></div>
+    <div class="stat-row"><span>Armor:</span><span class="val">${p.def + getEquipBonus('def')}</span></div>
   `;
   
   let bagHtml = '';
   for(let i=0; i<20; i++) {
       const item = p.inventory[i];
-      if (item) {
-          const tooltip = `<div class="wow-tooltip"><div class="tt-name" style="color:var(--${item.rarity})">${item.name}</div><div class="tt-type">Slot: ${item.slot}</div><div class="tt-stat">${Object.entries(item.stats).map(([k,v])=>`+${v} ${k}`).join('<br>')}</div><div style="color:#aaa; font-size:9px; margin-top:4px;">Click to equip</div></div>`;
-          bagHtml += `<div class="bag-slot r-${item.rarity}" style="border:1px solid var(--${item.rarity})" onclick="equipItem('${item.id}')">${item.icon}${tooltip}</div>`;
-      } else { bagHtml += `<div class="bag-slot"></div>`; }
+      if (item) bagHtml += `<div class="bag-slot r-${item.rarity}" style="border:1px solid var(--${item.rarity})" onclick="equipItem('${item.id}')">${item.icon}<div class="wow-tooltip"><div class="tt-name" style="color:var(--${item.rarity})">${item.name}</div><div class="tt-type">Slot: ${item.slot}</div><div class="tt-stat">${Object.entries(item.stats).map(([k,v])=>`+${v} ${k}`).join('<br>')}</div></div></div>`;
+      else bagHtml += `<div class="bag-slot"></div>`;
   }
   document.getElementById('inventory-grid').innerHTML = bagHtml;
 }
 
 function equipItem(id) {
-  const it = state.player.inventory.find(i => i.id === id);
-  if (!it) return;
-  if (state.player.equipped[it.slot]) {
-      state.player.inventory.push(state.player.equipped[it.slot]);
-  }
-  state.player.equipped[it.slot] = it;
-  state.player.inventory = state.player.inventory.filter(i => i.id !== id);
-  updateMaxHp();
-  showToast(`Equipped: ${it.name}`); renderInventory(); saveGame();
+  const it = state.player.inventory.find(i => i.id === id); if (!it) return;
+  if (state.player.equipped[it.slot]) state.player.inventory.push(state.player.equipped[it.slot]);
+  state.player.equipped[it.slot] = it; state.player.inventory = state.player.inventory.filter(i => i.id !== id);
+  updateMaxHp(); showToast(`Equipped: ${it.name}`); renderInventory(); saveGame();
 }
-
 function unequipItem(slot) {
   if(!state.player.equipped[slot]) return;
-  state.player.inventory.push(state.player.equipped[slot]);
-  state.player.equipped[slot] = null;
-  updateMaxHp(); 
-  showToast('Unequipped'); renderInventory(); saveGame();
+  state.player.inventory.push(state.player.equipped[slot]); state.player.equipped[slot] = null;
+  updateMaxHp(); showToast('Unequipped'); renderInventory(); saveGame();
 }
-
 function generateItem(level, rarity, forcedName = null, statMult = 1) {
   const slot = pick(ITEM_SLOTS); let icon = '❔'; const stats = {};
-  
-  if (slot === 'head') icon = pick(['🪖', '👑', '👲']);
-  else if (slot === 'shoulders') icon = pick(['🛡️', '🦅']);
-  else if (slot === 'chest') icon = pick(['🦺', '🥋', '🧥']);
-  else if (slot === 'hands') icon = pick(['🧤', '🦾']);
-  else if (slot === 'legs') icon = pick(['👖', '🩳']);
-  else if (slot === 'feet') icon = pick(['🥾', '👢']);
-  else if (slot === 'weapon') icon = pick(['⚔️', '🏹', '🪄', '🪓', '🔨', '🗡️']);
-  else if (slot === 'offhand') icon = pick(['📖', '🛡️', '🔮', '🧿']);
-  
+  if (slot === 'head') icon = pick(['🪖', '👑', '👲']); else if (slot === 'shoulders') icon = pick(['🛡️', '🦅']); else if (slot === 'chest') icon = pick(['🦺', '🥋', '🧥']); else if (slot === 'hands') icon = pick(['🧤', '🦾']); else if (slot === 'legs') icon = pick(['👖', '🩳']); else if (slot === 'feet') icon = pick(['🥾', '👢']); else if (slot === 'weapon') icon = pick(['⚔️', '🏹', '🪄', '🪓', '🔨', '🗡️']); else if (slot === 'offhand') icon = pick(['📖', '🛡️', '🔮', '🧿']);
   if (rarity === 'legendary') statMult *= 2; else if (rarity === 'epic') statMult *= 1.5; else if (rarity === 'rare') statMult *= 1.2; else if (rarity === 'uncommon') statMult *= 1; else statMult *= 0.8;
-  
-  if (slot === 'weapon') stats.atk = Math.floor(rng(2, 5) * statMult * (1 + level * 0.2));
-  else if (slot === 'chest' || slot === 'shoulders') stats.def = Math.floor(rng(2, 5) * statMult * (1 + level * 0.2));
-  else stats.hp = Math.floor(rng(10, 30) * statMult * (1 + level * 0.2));
-  
+  if (slot === 'weapon') stats.atk = Math.floor(rng(2, 5) * statMult * (1 + level * 0.2)); else if (slot === 'chest' || slot === 'shoulders') stats.def = Math.floor(rng(2, 5) * statMult * (1 + level * 0.2)); else stats.hp = Math.floor(rng(10, 30) * statMult * (1 + level * 0.2));
   return { id: 'it_' + Date.now() + Math.random(), name: forcedName || `${rarity.charAt(0).toUpperCase()+rarity.slice(1)} ${slot}`, slot, rarity, level, stats, icon };
 }
 
-// --- COMBAT PARTY TURN-BASED SYSTEM ---
+// --- LOCAL PVE COMBAT (Adventure, Dungeon, Raid) ---
 function startCombat(enemies, mode, sourceTile = null, alliesList = []) {
-  // FULL RESET SEBELUM MASUK COMBAT
-  state.player.hp = state.player.maxHp;
-  state.player.mana = state.player.maxMana;
-  state.player.abilities.forEach(a => a.currentCd = 0);
-  
+  state.player.hp = state.player.maxHp; state.player.mana = state.player.maxMana; state.player.abilities.forEach(a => a.currentCd = 0);
   alliesList.forEach(a => { a.hp = a.maxHp; });
 
-  state.combat = { 
-      enemies: enemies.map(e => ({...e, maxHp: e.hp, alive: true})), 
-      allies: alliesList.map(a => ({...a, maxHp: a.hp, alive: true})),
-      turn: 'player', log: [], sourceTile, potionCd: 0 
-  };
+  state.combat = { enemies: enemies.map(e => ({...e, maxHp: e.hp, alive: true})), allies: alliesList.map(a => ({...a, maxHp: a.hp, alive: true})), turn: 'dice', log: ["A wild enemy appeared!"], sourceTile, potionCd: 0 };
   state.mode = mode;
   showScreen('combat'); 
-  renderCombat();
+  initDicePhasePvE(); // Dadu Lokal PVE
 }
 
 function renderCombat() {
   const p = state.player; const e = state.combat.enemies;
-  
-  let teamHtml = `
-    <div class="unit-frame player-frame ${p.hp<=0?'dead':''}">
-      <div class="unit-portrait"><svg viewBox="0 0 24 24" style="width:32px; fill:var(--gold)"><path d="${CLASS_ICONS[p.class]}"/></svg></div>
-      <div class="unit-info">
-        <div class="unit-name">${p.name} <span class="role-tag">(${p.role})</span></div>
-        <div class="resource-bar bar-hp" style="margin-bottom:2px;"><div class="bar-track" style="height:14px;"><div class="bar-fill" style="width:${(p.hp/p.maxHp)*100}%"></div><div class="bar-text">${p.hp}/${p.maxHp}</div></div></div>
-        <div class="resource-bar bar-mana" style="margin-bottom:0;"><div class="bar-track" style="height:8px;"><div class="bar-fill" style="width:${(p.mana/p.maxMana)*100}%"></div></div></div>
-      </div>
-      <div class="unit-level">${p.level}</div>
-    </div>
-  `;
-  
-  state.combat.allies.forEach(a => {
-      teamHtml += `
-      <div class="unit-frame ${a.hp<=0?'dead':''}" style="width:90%;">
-        <div class="unit-portrait" style="width:40px; height:40px;"><svg viewBox="0 0 24 24" style="width:20px; fill:#ccc"><path d="${a.icon}"/></svg></div>
-        <div class="unit-info">
-          <div class="unit-name" style="color:#ccc">${a.name} <span class="role-tag">(${a.role})</span></div>
-          <div class="resource-bar bar-hp" style="margin-bottom:2px;"><div class="bar-track" style="height:10px;"><div class="bar-fill" style="width:${(a.hp/a.maxHp)*100}%"></div></div></div>
-        </div>
-        <div class="unit-level" style="left:5px; width:16px; height:16px; font-size:8px;">${a.level}</div>
-      </div>`;
-  });
-  document.getElementById('combat-team').innerHTML = teamHtml;
+  document.getElementById('combat-team').innerHTML = `<div class="unit-frame player-frame ${p.hp<=0?'dead':''}"><div class="unit-portrait"><svg viewBox="0 0 24 24" style="width:32px; fill:var(--gold)"><path d="${CLASS_ICONS[p.class]}"/></svg></div><div class="unit-info"><div class="unit-name">${p.name} <span class="role-tag">(${p.role})</span></div><div class="resource-bar bar-hp" style="margin-bottom:2px;"><div class="bar-track" style="height:14px;"><div class="bar-fill" style="width:${(p.hp/p.maxHp)*100}%"></div><div class="bar-text">${p.hp}/${p.maxHp}</div></div></div><div class="resource-bar bar-mana" style="margin-bottom:0;"><div class="bar-track" style="height:8px;"><div class="bar-fill" style="width:${(p.mana/p.maxMana)*100}%"></div></div></div></div><div class="unit-level">${p.level}</div></div>` + state.combat.allies.map(a => `<div class="unit-frame ${a.hp<=0?'dead':''}" style="width:90%;"><div class="unit-portrait" style="width:40px; height:40px;"><svg viewBox="0 0 24 24" style="width:20px; fill:#ccc"><path d="${a.icon}"/></svg></div><div class="unit-info"><div class="unit-name" style="color:#ccc">${a.name} <span class="role-tag">(${a.role})</span></div><div class="resource-bar bar-hp" style="margin-bottom:2px;"><div class="bar-track" style="height:10px;"><div class="bar-fill" style="width:${(a.hp/a.maxHp)*100}%"></div></div></div></div><div class="unit-level" style="left:5px; width:16px; height:16px; font-size:8px;">${a.level}</div></div>`).join('');
 
-  let enemyHtml = '';
-  e.forEach(en => {
-      let eliteDecor = en.isElite ? `<div class="elite-dragon">🐲</div>` : '';
-      enemyHtml += `
-      <div class="unit-frame target-frame ${en.hp<=0?'dead':''}">
-        ${eliteDecor}
-        <div class="unit-portrait" style="border-color:#ff3333;"><div class="emoji">${en.icon}</div></div>
-        <div class="unit-info">
-          <div class="unit-name" style="color:#ff5050;">${en.name}</div>
-          <div class="resource-bar bar-hp" style="margin-bottom:2px;"><div class="bar-track" style="height:14px;"><div class="bar-fill" style="background:linear-gradient(180deg, #d33c3c, #9c1717); width:${(en.hp/en.maxHp)*100}%"></div><div class="bar-text">${en.hp}/${en.maxHp}</div></div></div>
-        </div>
-        <div class="unit-level">${en.level || state.player.level}</div>
-      </div>`;
-  });
-  document.getElementById('combat-enemies').innerHTML = enemyHtml;
+  document.getElementById('combat-enemies').innerHTML = e.map(en => `<div class="unit-frame target-frame ${en.hp<=0?'dead':''}">${en.isElite ? `<div class="elite-dragon">🐲</div>` : ''}<div class="unit-portrait" style="border-color:#ff3333;"><div class="emoji">${en.icon}</div></div><div class="unit-info"><div class="unit-name" style="color:#ff5050;">${en.name}</div><div class="resource-bar bar-hp" style="margin-bottom:2px;"><div class="bar-track" style="height:14px;"><div class="bar-fill" style="background:linear-gradient(180deg, #d33c3c, #9c1717); width:${(en.hp/en.maxHp)*100}%"></div><div class="bar-text">${en.hp}/${en.maxHp}</div></div></div></div><div class="unit-level">${en.level || p.level}</div></div>`).join('');
 
-  document.getElementById('ability-bar').innerHTML = `
-    ${p.abilities.map((a, i) => `<button class="ability-btn" ${a.currentCd > 0 || p.mana < a.cost ? 'disabled' : ''} onclick="useAbility(${i})"><div class="ability-name">${a.name}</div><div class="ability-cost">${a.cost > 0 ? `${a.cost} MP` : 'Free'}</div>${a.currentCd > 0 ? `<div class="ability-cd">${a.currentCd}</div>` : ''}</button>`).join('')}
-    <button class="potion-btn" onclick="usePotion('hp')" ${state.combat.potionCd > 0 || !p.hpPotions || p.hpPotions < 1 ? 'disabled' : ''}><div class="potion-icon">❤️</div>${p.hpPotions > 0 && state.combat.potionCd === 0 ? `<div class="potion-count">${p.hpPotions}</div>` : (state.combat.potionCd > 0 ? `<div style="font-size:10px">${state.combat.potionCd}</div>` : '')}</button>
-    <button class="potion-btn mana" onclick="usePotion('mana')" ${state.combat.potionCd > 0 || !p.manaPotions || p.manaPotions < 1 ? 'disabled' : ''}><div class="potion-icon">🔵</div>${p.manaPotions > 0 && state.combat.potionCd === 0 ? `<div class="potion-count">${p.manaPotions}</div>` : (state.combat.potionCd > 0 ? `<div style="font-size:10px">${state.combat.potionCd}</div>` : '')}</button>`;
+  document.getElementById('ability-bar').innerHTML = p.abilities.map((a, i) => `<button class="ability-btn" ${state.combat.turn !== 'player' || a.currentCd > 0 || p.mana < a.cost ? 'disabled' : ''} onclick="useAbility(${i})"><div class="ability-name">${a.name}</div><div class="ability-cost">${a.cost > 0 ? `${a.cost} MP` : 'Free'}</div>${a.currentCd > 0 ? `<div class="ability-cd">${a.currentCd}</div>` : ''}</button>`).join('') + `<button class="potion-btn" onclick="usePotion('hp')" ${state.combat.turn !== 'player' || state.combat.potionCd > 0 || p.hpPotions < 1 ? 'disabled' : ''}><div class="potion-icon">❤️</div>${p.hpPotions > 0 && state.combat.potionCd === 0 ? `<div class="potion-count">${p.hpPotions}</div>` : (state.combat.potionCd > 0 ? `<div style="font-size:10px">${state.combat.potionCd}</div>` : '')}</button><button class="potion-btn mana" onclick="usePotion('mana')" ${state.combat.turn !== 'player' || state.combat.potionCd > 0 || p.manaPotions < 1 ? 'disabled' : ''}><div class="potion-icon">🔵</div>${p.manaPotions > 0 && state.combat.potionCd === 0 ? `<div class="potion-count">${p.manaPotions}</div>` : (state.combat.potionCd > 0 ? `<div style="font-size:10px">${state.combat.potionCd}</div>` : '')}</button>`;
     
   document.getElementById('combat-log').innerHTML = state.combat.log.slice(-10).map(l => `<div class="log-entry">${l}</div>`).join('');
-  const logDiv = document.getElementById('combat-log');
-  logDiv.scrollTop = logDiv.scrollHeight;
+  const logDiv = document.getElementById('combat-log'); logDiv.scrollTop = logDiv.scrollHeight;
 }
 
 function useAbility(idx) {
+  if (state.mode === 'duel_sync') return useAbilityPvP(idx); // Routing ke Sync Action
+  
   if (state.combat.turn !== 'player') return;
   const p = state.player; const ab = p.abilities[idx]; 
   const liveEnemies = state.combat.enemies.filter(en => en.hp > 0);
@@ -1285,124 +1181,155 @@ function useAbility(idx) {
   
   if (ab.heal) { p.hp = Math.min(p.maxHp, p.hp + Math.floor(p.maxHp * ab.heal)); state.combat.log.push(`<span style="color:var(--health)">Healed for ${Math.floor(p.maxHp * ab.heal)}</span>`); }
   if (ab.buff) { state.combat.log.push(`<span style="color:var(--gold)">Buff Gained: ${ab.buff.type.toUpperCase()}</span>`); }
-  if (ab.dmg > 0) { 
-      let dmg = Math.floor((p.atk + getEquipBonus('atk')) * ab.dmg * (0.8 + Math.random() * 0.4)); 
-      e.hp -= dmg; 
-      state.combat.log.push(`<span style="color:var(--gold)">${ab.name}</span> hits ${e.name} for <span style="color:#ffcc00; font-weight:bold;">${dmg}</span>`); 
-  }
+  if (ab.dmg > 0) { let dmg = Math.floor((p.atk + getEquipBonus('atk')) * ab.dmg * (0.8 + Math.random() * 0.4)); e.hp -= dmg; state.combat.log.push(`<span style="color:var(--gold)">${ab.name}</span> hits ${e.name} for <span style="color:#ffcc00; font-weight:bold;">${dmg}</span>`); }
   
-  state.combat.turn = 'allies'; 
-  renderCombat(); 
-  
-  if(state.combat.allies.length > 0) setTimeout(alliesTurn, 800);
-  else setTimeout(enemyTurn, 800);
+  state.combat.turn = 'allies'; renderCombat(); 
+  if(state.combat.allies.length > 0) setTimeout(alliesTurn, 800); else setTimeout(enemyTurn, 800);
 }
 
 function usePotion(type) {
+  if (state.mode === 'duel_sync') return usePotionPvP(type);
   if (state.combat.potionCd > 0) return; const p = state.player;
   if (type === 'hp' && p.hpPotions > 0) { p.hp = Math.min(p.maxHp, p.hp + Math.floor(p.maxHp * 0.5)); p.hpPotions--; state.combat.log.push(`<span style="color:var(--health)">Used HP Potion (+${Math.floor(p.maxHp*0.5)} HP)</span>`); }
   else if (type === 'mana' && p.manaPotions > 0) { p.mana = Math.min(p.maxMana, p.mana + Math.floor(p.maxMana * 0.5)); p.manaPotions--; state.combat.log.push(`<span style="color:var(--mana)">Used Mana Potion (+${Math.floor(p.maxMana*0.5)} MP)</span>`); }
   
-  state.combat.potionCd = 3; 
-  state.combat.turn = 'allies'; 
-  renderCombat(); 
+  state.combat.potionCd = 3; state.combat.turn = 'allies'; renderCombat(); 
+  if(state.combat.allies.length > 0) setTimeout(alliesTurn, 800); else setTimeout(enemyTurn, 800);
+}
+
+// Action Push for PVP Sync
+async function useAbilityPvP(idx) {
+    if (state.duelData.combatState.turn !== state.user.username) return;
+    const p = state.player; const ab = p.abilities[idx];
+    if (ab.currentCd > 0 || p.mana < ab.cost) return;
+
+    p.mana -= ab.cost; if(ab.cd > 0) ab.currentCd = ab.cd;
+
+    let dmg = 0; let heal = 0; let logMsg = "";
+    if (ab.heal) { heal = Math.floor(p.maxHp * ab.heal); logMsg = `<span style="color:var(--health)">${p.name} heals for ${heal}</span>`; }
+    if (ab.dmg > 0) { dmg = Math.floor((p.atk + getEquipBonus('atk')) * ab.dmg * (0.8 + Math.random() * 0.4)); logMsg = `<span style="color:var(--gold)">${ab.name}</span> deals <span style="color:#ffcc00;">${dmg}</span>`; }
+
+    let isP1 = state.duelData.isP1; let cs = state.duelData.combatState;
+    if (isP1) {
+        cs.p1_mana -= ab.cost;
+        if (heal) cs.p1_hp = Math.min(p.maxHp, cs.p1_hp + heal);
+        if (dmg) cs.p2_hp -= dmg;
+    } else {
+        cs.p2_mana -= ab.cost;
+        if (heal) cs.p2_hp = Math.min(p.maxHp, cs.p2_hp + heal);
+        if (dmg) cs.p1_hp -= dmg;
+    }
+
+    cs.logs.push(logMsg);
+    cs.turn = isP1 ? state.duelData.payload.p2.username : state.duelData.payload.p1.username;
+    if (cs.p1_hp <= 0 || cs.p2_hp <= 0) cs.turn = 'end';
+
+    renderCombatPvP(); 
+    await apiRequest({ action: 'duelAction', inviteId: state.duelData.id, combatState: cs });
+}
+
+async function usePotionPvP(type) {
+  if (state.duelData.combatState.turn !== state.user.username) return;
+  const p = state.player; let healAmount = 0; let logMsg = "";
+  let isP1 = state.duelData.isP1; let cs = state.duelData.combatState;
+
+  if (type === 'hp' && p.hpPotions > 0) {
+      healAmount = Math.floor(p.maxHp * 0.5); p.hpPotions--;
+      if (isP1) cs.p1_hp = Math.min(p.maxHp, cs.p1_hp + healAmount); else cs.p2_hp = Math.min(p.maxHp, cs.p2_hp + healAmount);
+      logMsg = `<span style="color:var(--health)">${p.name} drinks HP Potion (+${healAmount})</span>`;
+  } else if (type === 'mana' && p.manaPotions > 0) {
+      healAmount = Math.floor(p.maxMana * 0.5); p.manaPotions--;
+      if (isP1) cs.p1_mana = Math.min(p.maxMana, cs.p1_mana + healAmount); else cs.p2_mana = Math.min(p.maxMana, cs.p2_mana + healAmount);
+      logMsg = `<span style="color:var(--mana)">${p.name} drinks Mana Potion (+${healAmount})</span>`;
+  } else return;
   
-  if(state.combat.allies.length > 0) setTimeout(alliesTurn, 800);
-  else setTimeout(enemyTurn, 800);
+  cs.logs.push(logMsg);
+  cs.turn = isP1 ? state.duelData.payload.p2.username : state.duelData.payload.p1.username;
+  renderCombatPvP();
+  await apiRequest({ action: 'duelAction', inviteId: state.duelData.id, combatState: cs });
 }
 
 function alliesTurn() {
     const liveAllies = state.combat.allies.filter(a => a.hp > 0);
     const liveEnemies = state.combat.enemies.filter(en => en.hp > 0);
-    
     if(liveEnemies.length === 0) return endCombat(true);
 
     if(liveAllies.length > 0) {
         liveAllies.forEach(ally => {
             if(liveEnemies[0].hp <= 0) return;
-            
             if(ally.role === 'healer' && Math.random() < 0.4) {
                 state.player.hp = Math.min(state.player.maxHp, state.player.hp + Math.floor(ally.maxHp * 0.15));
                 state.combat.log.push(`<span style="color:var(--healer)">${ally.name} heals ${state.player.name}</span>`);
             } else {
-                let dmg = Math.floor(ally.atk * (0.8 + Math.random() * 0.4));
-                liveEnemies[0].hp -= dmg;
+                let dmg = Math.floor(ally.atk * (0.8 + Math.random() * 0.4)); liveEnemies[0].hp -= dmg;
                 state.combat.log.push(`<span style="color:#ccc">${ally.name}</span> hits ${liveEnemies[0].name} for <span style="color:#ffcc00;">${dmg}</span>`);
             }
         });
     }
-
     if (liveEnemies.every(en => en.hp <= 0)) return endCombat(true);
-    
-    state.combat.turn = 'enemy';
-    renderCombat();
-    setTimeout(enemyTurn, 1000);
+    state.combat.turn = 'enemy'; renderCombat(); setTimeout(enemyTurn, 1000);
 }
 
 function enemyTurn() {
   const liveEnemies = state.combat.enemies.filter(en => en.hp > 0);
-  const p = state.player;
-  const liveTeam = [p, ...state.combat.allies.filter(a => a.hp > 0)];
-  
+  const p = state.player; const liveTeam = [p, ...state.combat.allies.filter(a => a.hp > 0)];
   if (liveTeam.length === 0 || p.hp <= 0) { p.hp = 0; return endCombat(false); }
 
   liveEnemies.forEach(e => {
-      let tank = liveTeam.find(t => t.role === 'tank');
-      let target = (tank && Math.random() > 0.3) ? tank : pick(liveTeam);
-      
-      let dmg = Math.floor(e.atk * (0.8 + Math.random() * 0.4));
-      target.hp -= dmg; 
+      let tank = liveTeam.find(t => t.role === 'tank'); let target = (tank && Math.random() > 0.3) ? tank : pick(liveTeam);
+      let dmg = Math.floor(e.atk * (0.8 + Math.random() * 0.4)); target.hp -= dmg; 
       state.combat.log.push(`<span style="color:#ff5050">${e.name}</span> hits ${target.name} for <span style="color:#ff5050; font-weight:bold;">${dmg}</span>`);
   });
   
   if (state.combat.potionCd > 0) state.combat.potionCd--;
   if (p.hp <= 0) { p.hp = 0; return endCombat(false); }
-  
   p.abilities.forEach(a => { if (a.currentCd > 0) a.currentCd--; });
-  state.combat.turn = 'player'; 
-  renderCombat();
+  state.combat.turn = 'player'; renderCombat();
 }
 
+// Result untuk PVE Lokal
 function endCombat(victory) {
   const p = state.player;
-  
   let totalXp = 0; let totalGold = 0;
   state.combat.enemies.forEach(e => { totalXp += e.xp; totalGold += e.gold; });
 
   if (victory) {
-    if (state.mode === 'pvp' || state.mode === 'duel') { 
-        p.honor += 50; p.arenaPoints += 10; 
-        showResult(true, 0, 0, null, [], "Honor & Arena Points");
-    } else {
-        p.xp += totalXp; p.gold += totalGold;
-        
-        let loot = null;
-        if (state.mode === 'raid') loot = generateItem(60, 'legendary'); 
-        else if (state.mode === 'dungeon') loot = generateItem(p.level, pick(['rare', 'epic'])); 
-        else if (Math.random() < 0.3) loot = generateItem(p.level, pick(['common', 'uncommon']));
-        
-        let potDrop = [];
-        if (Math.random() < 0.20) { p.hpPotions = (p.hpPotions||0)+1; potDrop.push('1 HP Potion'); }
-        if (Math.random() < 0.20) { p.manaPotions = (p.manaPotions||0)+1; potDrop.push('1 Mana Potion'); }
-        if (loot) p.inventory.push(loot);
-        
-        if (state.combat.sourceTile) state.combat.sourceTile.cleared = true;
-        while (p.xp >= p.xpNext && p.level < MAX_LEVEL) { 
-            p.xp -= p.xpNext; p.level++; p.xpNext = Math.floor(p.xpNext * 1.5); 
-            p.atk += 2; updateMaxHp(); p.maxMana += 10; p.hp = p.maxHp; p.mana = p.maxMana; 
-        }
-        showResult(true, totalXp, totalGold, loot, potDrop, "");
-    }
-  } else { 
-    showResult(false, 0, 0, null, [], ""); 
-  }
+      p.xp += totalXp; p.gold += totalGold;
+      let loot = null;
+      if (state.mode === 'raid') loot = generateItem(60, 'legendary'); 
+      else if (state.mode === 'dungeon') loot = generateItem(p.level, pick(['rare', 'epic'])); 
+      else if (Math.random() < 0.3) loot = generateItem(p.level, pick(['common', 'uncommon']));
+      
+      let potDrop = [];
+      if (Math.random() < 0.20) { p.hpPotions = (p.hpPotions||0)+1; potDrop.push('1 HP Potion'); }
+      if (Math.random() < 0.20) { p.manaPotions = (p.manaPotions||0)+1; potDrop.push('1 Mana Potion'); }
+      if (loot) p.inventory.push(loot);
+      
+      if (state.combat.sourceTile) state.combat.sourceTile.cleared = true;
+      while (p.xp >= p.xpNext && p.level < MAX_LEVEL) { 
+          p.xp -= p.xpNext; p.level++; p.xpNext = Math.floor(p.xpNext * 1.5); 
+          p.atk += 2; updateMaxHp(); p.maxMana += 10; p.hp = p.maxHp; p.mana = p.maxMana; 
+      }
+      showResult(true, totalXp, totalGold, loot, potDrop, "");
+  } else { showResult(false, 0, 0, null, [], ""); }
+}
+
+// Result PVP Sync
+function endPvPCombat() {
+    clearInterval(duelSyncInterval); duelSyncInterval = null;
+    let cs = state.duelData.combatState; let isP1 = state.duelData.isP1;
+    let myHp = isP1 ? cs.p1_hp : cs.p2_hp;
+    let victory = myHp > 0;
+
+    if (victory) { state.player.honor += 50; state.player.arenaPoints += 10; }
+    showResult(victory, 0, 0, null, [], victory ? "Gladiator Winner! +50 Honor, +10 AP" : "Defeated in Duel.");
 }
 
 function showResult(victory, xp, gold, loot, potDrop, customMsg) {
   document.getElementById('result-content').innerHTML = `
     <h1 style="font-family:Cinzel;font-size:48px;color:${victory?'var(--gold)':'#ff5050'}">${victory?'VICTORY':'DEFEAT'}</h1>
     ${victory ? `<p style="color:var(--text-dim);margin:10px 0;font-size:16px;">
-        ${customMsg !== "" ? `<span style="color:var(--honor)">+50 Honor, +10 Arena Points</span>` : `+${xp} XP, +${gold} Gold`}
+        ${customMsg !== "" ? `<span style="color:var(--honor)">${customMsg}</span>` : `+${xp} XP, +${gold} Gold`}
     </p>
     ${potDrop && potDrop.length > 0 ? `<p style="color:var(--uncommon);margin:5px 0;">Dropped: ${potDrop.join(', ')}</p>` : ''}
     ${loot?`<div style="margin:20px auto;max-width:200px;background:#000;border:1px solid var(--${loot.rarity});padding:10px;border-radius:4px;"><div style="font-size:32px; filter:drop-shadow(0 2px 2px #000);">${loot.icon}</div><div style="font-family:Cinzel;color:var(--${loot.rarity});">${loot.name}</div><div style="font-size:10px;color:#aaa;">Sent to Backpack</div></div>`:''}` : '<p style="color:var(--text-dim)">You have died in battle...</p>'}
@@ -1413,34 +1340,24 @@ function showResult(victory, xp, gold, loot, potDrop, customMsg) {
 function afterCombat() {
   let wasDead = state.player.hp <= 0;
   
-  if (wasDead) {
-      state.player.hp = state.player.maxHp;
-      state.player.mana = state.player.maxMana;
-  }
-
-  state.dungeonRun = null; 
+  if (wasDead || state.mode === 'duel_sync') { state.player.hp = state.player.maxHp; state.player.mana = state.player.maxMana; }
+  
   state.combat = null;
+  state.duelData = null;
+  if(duelSyncInterval) { clearInterval(duelSyncInterval); duelSyncInterval = null; }
   
   if (state.mode === 'world' && state.worldMap) { 
-      if (wasDead) {
-          state.worldMap = generateWorldMap(state.worldMap.zone);
-          showToast('Kamu dibangkitkan kembali di Hometown.');
-      }
-      showScreen('map'); 
-      renderMap(); 
-  } else { 
-      enterTown(); 
-  }
+      if (wasDead) { state.worldMap = generateWorldMap(state.worldMap.zone); showToast('Kamu dibangkitkan kembali di Hometown.'); }
+      showScreen('map'); renderMap(); 
+  } else { enterTown(); }
   
-  state.mode = null;
-  saveGame();
+  state.mode = null; saveGame();
 }
 
 function tryFlee() { afterCombat(); }
 
 document.querySelectorAll('.auth-tab').forEach(t => t.onclick = () => {
-  document.querySelectorAll('.auth-tab').forEach(x => x.classList.remove('active'));
-  document.querySelectorAll('.auth-form').forEach(x => x.classList.remove('active'));
+  document.querySelectorAll('.auth-tab').forEach(x => x.classList.remove('active')); document.querySelectorAll('.auth-form').forEach(x => x.classList.remove('active'));
   t.classList.add('active'); document.getElementById('form-' + t.dataset.form).classList.add('active');
 });
 </script>

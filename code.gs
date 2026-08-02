@@ -11,11 +11,10 @@ function doPost(e) {
       sheet.appendRow(['Username', 'Password', 'SaveData']);
     }
     
-    // Inisialisasi Sheet Invites
     let invSheet = ss.getSheetByName(INVITE_SHEET);
     if (!invSheet) {
       invSheet = ss.insertSheet(INVITE_SHEET);
-      invSheet.appendRow(['Id', 'From', 'To', 'Mode', 'Status', 'Timestamp']);
+      invSheet.appendRow(['Id', 'From', 'To', 'Mode', 'Status', 'Timestamp', 'Payload']);
     }
 
     const data = JSON.parse(e.postData.contents);
@@ -36,42 +35,89 @@ function doPost(e) {
       if (rowFound !== -1) onlineSheet.getRange(rowFound, 2).setValue(now);
       else onlineSheet.appendRow([username, now]);
       
-      // LOGIKA POLLING UNDANGAN (INVITE)
       let invData = invSheet.getDataRange().getValues();
       let pendingInvites = [];
       let inviteReplies = [];
       
       for (let i = 1; i < invData.length; i++) {
-        // Cek undangan masuk
         if (invData[i][2] === username && invData[i][4] === 'pending') {
-          pendingInvites.push({ id: invData[i][0], from: invData[i][1], mode: invData[i][3] });
+          pendingInvites.push({ id: invData[i][0], from: invData[i][1], mode: invData[i][3], payload: JSON.parse(invData[i][6]) });
         }
-        // Cek jawaban atas undangan yang dikirim user ini
         if (invData[i][1] === username && (invData[i][4] === 'accepted' || invData[i][4] === 'rejected')) {
-          inviteReplies.push({ id: invData[i][0], to: invData[i][2], mode: invData[i][3], status: invData[i][4] });
-          invSheet.getRange(i + 1, 5).setValue('notified'); // Tandai agar tidak di-ping berkali-kali
+          inviteReplies.push({ id: invData[i][0], to: invData[i][2], mode: invData[i][3], status: invData[i][4], payload: JSON.parse(invData[i][6]) });
+          invSheet.getRange(i + 1, 5).setValue('notified'); 
         }
       }
       return ContentService.createTextOutput(JSON.stringify({ success: true, pendingInvites: pendingInvites, inviteReplies: inviteReplies })).setMimeType(ContentService.MimeType.JSON);
     }
     
-    // API: Kirim Undangan
+    // API PVP: Kirim undangan dan snapshot status P1
     if (action === 'sendInvite') {
       const invId = Date.now().toString();
-      invSheet.appendRow([invId, username, data.target, data.mode, 'pending', new Date()]);
+      const initialPayload = { p1: data.payload, p2: null, combatState: null };
+      invSheet.appendRow([invId, username, data.target, data.mode, 'pending', new Date(), JSON.stringify(initialPayload)]);
       return ContentService.createTextOutput(JSON.stringify({ success: true })).setMimeType(ContentService.MimeType.JSON);
     }
 
-    // API: Respon Undangan
+    // API PVP: Respon undangan dan buat Combat Shared State
     if (action === 'respondInvite') {
       let invData = invSheet.getDataRange().getValues();
       for(let i = 1; i < invData.length; i++) {
         if(invData[i][0] === data.inviteId) {
           invSheet.getRange(i + 1, 5).setValue(data.response);
+          if (data.response === 'accepted') {
+             let payload = JSON.parse(invData[i][6]);
+             payload.p2 = data.payload; 
+             payload.combatState = {
+                 turn: 'dice',
+                 rolls: {},
+                 logs: ["The Duel Begins! Roll the dice."],
+                 p1_hp: payload.p1.maxHp, p2_hp: payload.p2.maxHp,
+                 p1_mana: payload.p1.maxMana, p2_mana: payload.p2.maxMana
+             };
+             invSheet.getRange(i + 1, 7).setValue(JSON.stringify(payload));
+          }
           break;
         }
       }
       return ContentService.createTextOutput(JSON.stringify({ success: true })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // API PVP: Sinkronisasi Aksi Pertempuran & Dadu
+    if (action === 'duelAction') {
+       let invData = invSheet.getDataRange().getValues();
+       for(let i = 1; i < invData.length; i++) {
+         if(invData[i][0] === data.inviteId) {
+           let payload = JSON.parse(invData[i][6]);
+           let newCs = data.combatState;
+
+           // Server-side Dice Resolution (Mencegah Race Condition)
+           if (payload.combatState.rolls && newCs.rolls) {
+               newCs.rolls = { ...payload.combatState.rolls, ...newCs.rolls };
+           }
+           payload.combatState = newCs;
+
+           if (payload.combatState.turn === 'dice' && payload.combatState.rolls[payload.p1.username] && payload.combatState.rolls[payload.p2.username]) {
+               let r1 = payload.combatState.rolls[payload.p1.username];
+               let r2 = payload.combatState.rolls[payload.p2.username];
+               // P1 menang jika seri
+               payload.combatState.turn = (r1 >= r2) ? payload.p1.username : payload.p2.username;
+           }
+
+           invSheet.getRange(i + 1, 7).setValue(JSON.stringify(payload));
+           return ContentService.createTextOutput(JSON.stringify({ success: true })).setMimeType(ContentService.MimeType.JSON);
+         }
+       }
+    }
+
+    // API PVP: Fetch Realtime Combat State
+    if (action === 'getDuelState') {
+        let invData = invSheet.getDataRange().getValues();
+        for(let i = 1; i < invData.length; i++) {
+           if(invData[i][0] === data.inviteId) {
+              return ContentService.createTextOutput(JSON.stringify({ success: true, payload: JSON.parse(invData[i][6]) })).setMimeType(ContentService.MimeType.JSON);
+           }
+        }
     }
 
     if (action === 'getOnline') {
