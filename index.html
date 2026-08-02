@@ -638,11 +638,34 @@ async function respondInvite(id, from, mode, response) {
   const mySnapshot = getPlayerSnapshot();
   await apiRequest({ action: 'respondInvite', inviteId: id, response: response, payload: mySnapshot });
   if (response === 'accepted') {
-    // Sebagai P2, kita perlu mensintesa initial payload untuk local state sebelum sync pertama berjalan
     let simulatedPayload = { p2: mySnapshot, combatState: { turn: 'dice', rolls: {}, logs: ["Memasuki Arena PvP..."], p2_hp: mySnapshot.maxHp, p2_mana: mySnapshot.maxMana } };
     startPvPSync(id, simulatedPayload, false); // P2 (Diundang)
   }
 }
+
+// === FUNGSI INTERACT DIKEMBALIKAN (TADI HILANG) ===
+function openInteractModal(username) {
+  if (username === state.player.name || username === state.user.username) return showToast("Tidak bisa invite diri sendiri.");
+  
+  const modalHtml = `
+    <div class="modal-box" style="max-width:400px; text-align:center;">
+      <div class="modal-title" style="font-size:18px;">Interact: <span style="color:#fff">${username}</span></div>
+      <div style="display:flex; flex-direction:column; gap:10px; margin-top:20px;">
+        <button class="btn" style="padding:12px; border-color:var(--honor); color:var(--honor)" onclick="inviteMode('${username}', 'duel')">⚔️ Duel (1v1 Sync)</button>
+        <!-- <button class="btn" style="padding:12px; border-color:var(--rare); color:var(--rare)" onclick="inviteMode('${username}', 'dungeon')">🚪 Invite Dungeon (Co-op)</button> -->
+        <!-- <button class="btn" style="padding:12px; border-color:var(--health); color:var(--health)" onclick="inviteMode('${username}', 'pvp')">🛡️ Invite PvP Arena (2v2)</button> -->
+        <!-- <button class="btn" style="padding:12px; border-color:var(--epic); color:var(--epic)" onclick="inviteMode('${username}', 'raid')">🐉 Invite Raid (Auto-fill Team)</button> -->
+      </div>
+      <p style="color:#666; font-size:10px; margin-top:10px;">(Mode co-op & 2v2 masih tahap pengembangan, gunakan Duel 1v1 Sync untuk saat ini)</p>
+      <div style="margin-top:20px;">
+        <button class="btn" style="width:100%" onclick="document.getElementById('modal-overlay').classList.remove('active')">Cancel</button>
+      </div>
+    </div>
+  `;
+  document.getElementById('modal-overlay').innerHTML = modalHtml;
+  document.getElementById('modal-overlay').classList.add('active');
+}
+// ===================================================
 
 // --- SYNC PVP COMBAT LOGIC ---
 async function startPvPSync(duelId, payload, isP1) {
@@ -656,7 +679,6 @@ async function startPvPSync(duelId, payload, isP1) {
   showScreen('combat');
   initDicePhasePvP();
   
-  // Karena P2 butuh info P1 dari server, render awal tunggu tarikan sync pertama
   startDuelSyncLoop();
 }
 
@@ -670,7 +692,6 @@ function startDuelSyncLoop() {
           
           let cs = state.duelData.combatState;
           
-          // Phase Dadu
           if (cs.turn === 'dice') {
               let p1Name = res.payload.p1.username;
               let p2Name = res.payload.p2.username;
@@ -685,9 +706,8 @@ function startDuelSyncLoop() {
                  if(val2) val2.textContent = (state.user.username === p2Name) ? cs.rolls[p2Name] : '✔️';
                  if(cs.rolls[p2Name] > 0) val2.classList.add('winner');
               }
-              renderCombatPvP(); // Pastikan unit frame ter-render
+              renderCombatPvP(); 
           } 
-          // Resolusi Dadu
           else if (document.getElementById('dice-overlay').style.display === 'flex') {
               let p1Name = res.payload.p1.username;
               let p2Name = res.payload.p2.username;
@@ -704,13 +724,12 @@ function startDuelSyncLoop() {
                   renderCombatPvP();
               }, 2000);
           } 
-          // Phase Tarung
           else {
               renderCombatPvP();
               if (cs.turn === 'end') setTimeout(endPvPCombat, 1500);
           }
       }
-  }, 2000); // 2 detik per siklus sinkronisasi
+  }, 2000); 
 }
 
 function renderCombatPvP() {
@@ -721,14 +740,12 @@ function renderCombatPvP() {
   const isP1 = state.duelData.isP1;
   const myUsername = state.user.username;
   
-  // Identifikasi Lokal vs Musuh
   const me = isP1 ? p1 : p2;
   const enemy = isP1 ? p2 : p1;
   const myHp = isP1 ? cs.p1_hp : cs.p2_hp;
   const enemyHp = isP1 ? cs.p2_hp : cs.p1_hp;
   const myMana = isP1 ? cs.p1_mana : cs.p2_mana;
 
-  // Render My Frame
   document.getElementById('combat-team').innerHTML = `
     <div class="unit-frame player-frame ${myHp<=0?'dead':''}">
       <div class="unit-portrait"><svg viewBox="0 0 24 24" style="width:32px; fill:var(--gold)"><path d="${me.icon}"/></svg></div>
@@ -740,7 +757,6 @@ function renderCombatPvP() {
       <div class="unit-level">${me.level}</div>
     </div>`;
 
-  // Render Enemy Frame
   document.getElementById('combat-enemies').innerHTML = `
     <div class="unit-frame target-frame ${enemyHp<=0?'dead':''}">
       <div class="unit-portrait" style="border-color:#ff3333;"><svg viewBox="0 0 24 24" style="width:32px; fill:#ff5050"><path d="${enemy.icon}"/></svg></div>
@@ -751,7 +767,6 @@ function renderCombatPvP() {
       <div class="unit-level">${enemy.level}</div>
     </div>`;
 
-  // Render Abilities (Disable jika bukan giliran)
   const isMyTurn = (cs.turn === myUsername);
   document.getElementById('ability-bar').innerHTML = state.player.abilities.map((a, i) => 
     `<button class="ability-btn" ${!isMyTurn || a.currentCd > 0 || state.player.mana < a.cost ? 'disabled' : ''} onclick="useAbility(${i})"><div class="ability-name">${a.name}</div><div class="ability-cost">${a.cost > 0 ? `${a.cost} MP` : 'Free'}</div>${a.currentCd > 0 ? `<div class="ability-cd">${a.currentCd}</div>` : ''}</button>`
@@ -799,15 +814,12 @@ async function executeDicePvP() {
     document.getElementById('btn-roll-dice').disabled = true;
     let roll = Math.floor(Math.random() * 20) + 1;
     
-    // Prediksi UI lokal biar responsif
     let isP1 = state.duelData.isP1;
     if(isP1) { document.getElementById('dice-val-1').textContent = roll; document.getElementById('dice-val-1').classList.add('winner'); }
     else { document.getElementById('dice-val-2').textContent = roll; document.getElementById('dice-val-2').classList.add('winner'); }
     
     let cs = state.duelData.combatState;
     cs.rolls[state.user.username] = roll;
-
-    // Server akan mengkalkulasi pemenang ketika 2 data roll masuk
     await apiRequest({ action: 'duelAction', inviteId: state.duelData.id, combatState: cs });
 }
 
@@ -910,19 +922,38 @@ function renderPlayerPanel() {
     </div>`;
 }
 
+// === FITUR MENU ACTION YANG HILANG DIKEMBALIKAN ===
 function renderActionArea() {
   const p = state.player;
   document.getElementById('action-area').innerHTML = `
     <div class="action-card" onclick="openZoneModal()">
-      <div class="action-title">Adventure</div><div class="action-desc">Pilih zona, buka tile, jelajahi peta dunia dan dapatkan loot.</div>
+      <div class="action-title">Adventure</div><div class="action-desc">Pilih zona, buka tile, jelajahi peta dunia dan dapatkan loot. (Murni Leveling)</div>
     </div>
     <div class="action-card ${p.level<5?'disabled':''}" onclick="${p.level<5?'':'enterDungeonInstance(state.player.level)'}">
       <div class="action-title" style="color:var(--rare)">Dungeon</div><div class="action-desc">Solo Run. Boss drop item Epic.</div><div class="action-meta">${p.level<5?'Need Lv 5':'Lv 5+'}</div>
     </div>
     <div class="action-card ${p.level<15?'disabled':''}" onclick="${p.level<15?'':'enterRaidInstance(state.player.level)'}">
       <div class="action-title" style="color:var(--epic)">Raid</div><div class="action-desc">Boss 3 Phase. Dijamin drop Legendary.</div><div class="action-meta">${p.level<15?'Need Lv 15':'Lv 15+'}</div>
+    </div>
+    <div class="action-card ${p.level<10?'disabled':''}" onclick="${p.level<10?'':'enterPvPInstance()'}">
+      <div class="action-title" style="color:var(--health)">PvP Arena</div><div class="action-desc">Bot Duel untuk latihan & farm Honor.</div><div class="action-meta">${p.level<10?'Need Lv 10':'Lv 10+'}</div>
     </div>`;
 }
+
+// Menambahkan handler fungsinya supaya tidak error saat diklik
+function enterDungeonInstance(level) {
+    const enemy = spawnEnemy(rng(0, ENEMY_TEMPLATES.length-1), level, true);
+    startCombat([enemy], 'dungeon', null, []);
+}
+function enterRaidInstance(level) {
+    const boss = { name: 'Raid Boss', icon: '🐉', isEmoji: true, hp: 800 + (level*10), maxHp: 800 + (level*10), atk: 25 + (level*2), def: 15 + level, xp: 5000, gold: 1000, level: level, isElite: true, color: '#ff3333' };
+    startCombat([boss], 'raid', null, []);
+}
+function enterPvPInstance() {
+    const gladiator = { name: 'Gladiator Bot', icon: '🛡️', hp: state.player.maxHp, maxHp: state.player.maxHp, atk: state.player.atk, def: state.player.def, xp: 0, gold: 0, level: state.player.level, color: '#ffaa00' };
+    startCombat([gladiator], 'pvp', null, []);
+}
+// ===================================================
 
 function renderOnlineList() {
   const c = document.getElementById('online-list-container');
@@ -1144,15 +1175,15 @@ function generateItem(level, rarity, forcedName = null, statMult = 1) {
   return { id: 'it_' + Date.now() + Math.random(), name: forcedName || `${rarity.charAt(0).toUpperCase()+rarity.slice(1)} ${slot}`, slot, rarity, level, stats, icon };
 }
 
-// --- LOCAL PVE COMBAT (Adventure, Dungeon, Raid) ---
+// --- LOCAL PVE COMBAT (Adventure, Dungeon, Raid, Bot PvP) ---
 function startCombat(enemies, mode, sourceTile = null, alliesList = []) {
   state.player.hp = state.player.maxHp; state.player.mana = state.player.maxMana; state.player.abilities.forEach(a => a.currentCd = 0);
   alliesList.forEach(a => { a.hp = a.maxHp; });
 
-  state.combat = { enemies: enemies.map(e => ({...e, maxHp: e.hp, alive: true})), allies: alliesList.map(a => ({...a, maxHp: a.hp, alive: true})), turn: 'dice', log: ["A wild enemy appeared!"], sourceTile, potionCd: 0 };
+  state.combat = { enemies: enemies.map(e => ({...e, maxHp: e.hp, alive: true})), allies: alliesList.map(a => ({...a, maxHp: a.hp, alive: true})), turn: 'dice', log: ["Pertempuran Dimulai!"], sourceTile, potionCd: 0 };
   state.mode = mode;
   showScreen('combat'); 
-  initDicePhasePvE(); // Dadu Lokal PVE
+  initDicePhasePvE(); 
 }
 
 function renderCombat() {
@@ -1168,7 +1199,7 @@ function renderCombat() {
 }
 
 function useAbility(idx) {
-  if (state.mode === 'duel_sync') return useAbilityPvP(idx); // Routing ke Sync Action
+  if (state.mode === 'duel_sync') return useAbilityPvP(idx); 
   
   if (state.combat.turn !== 'player') return;
   const p = state.player; const ab = p.abilities[idx]; 
@@ -1310,7 +1341,11 @@ function endCombat(victory) {
           p.xp -= p.xpNext; p.level++; p.xpNext = Math.floor(p.xpNext * 1.5); 
           p.atk += 2; updateMaxHp(); p.maxMana += 10; p.hp = p.maxHp; p.mana = p.maxMana; 
       }
-      showResult(true, totalXp, totalGold, loot, potDrop, "");
+      
+      // Jika mode PvP Bot
+      if (state.mode === 'pvp') { p.honor += 10; p.arenaPoints += 2; }
+      
+      showResult(true, totalXp, totalGold, loot, potDrop, (state.mode==='pvp') ? "Gladiator Winner! +10 Honor, +2 AP" : "");
   } else { showResult(false, 0, 0, null, [], ""); }
 }
 
