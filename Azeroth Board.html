@@ -1,0 +1,1097 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Azeroth Board — MMO Board Game</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Spectral:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-0: #05050a; --bg-1: #0d0d18; --bg-2: #14142a; --bg-3: #1c1c38; --bg-4: #252548;
+  --gold: #ffb830; --gold-bright: #ffd966; --epic: #a335ee; --rare: #0070dd; --uncommon: #1eff00; --common: #9d9d9d; --legendary: #ff8000;
+  --health: #279b27; --mana: #0070dd; --xp: #800080; --honor: #ff6060; --arena: #1eff00;
+  --border: #3b3b3b; --border-bright: #5a5a5a; --text: #e8e8f0; --text-dim: #a0a0a0; --text-mute: #666;
+  --tank: #4d7eff; --healer: #1eff00; --dps: #ff6060;
+  --panel-bg: linear-gradient(to bottom, rgba(20,20,20,0.95), rgba(10,10,10,0.98));
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body { font-family: 'Spectral', serif; background: var(--bg-0); color: var(--text); overflow-x: hidden; }
+body::before { content: ''; position: fixed; inset: 0; z-index: -2; pointer-events: none; background: radial-gradient(circle at 15% 20%, rgba(255,184,48,0.05), transparent 60%), linear-gradient(180deg, #05050a 0%, #111 50%, #05050a 100%); }
+h1, h2, h3, h4, .cinzel { font-family: 'Cinzel', serif; letter-spacing: 0.04em; }
+#game { max-width: 1500px; margin: 0 auto; padding: 20px; min-height: 100vh; position: relative; }
+.screen { display: none; animation: screenIn 0.5s cubic-bezier(0.16,1,0.3,1); }
+.screen.active { display: block; }
+@keyframes screenIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: var(--bg-1); border-radius: 4px; }
+::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--gold); }
+
+/* AUTH */
+.auth-container { max-width: 420px; margin: 80px auto; background: var(--panel-bg); border: 2px solid var(--border-bright); border-radius: 8px; padding: 40px; box-shadow: 0 0 30px rgba(0,0,0,0.9); }
+.auth-title { text-align: center; font-size: 36px; font-weight: 900; color: var(--gold); margin-bottom: 8px; text-shadow: 2px 2px 4px #000; }
+.auth-subtitle { text-align: center; font-size: 12px; color: var(--text-dim); letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 30px; }
+.auth-tabs { display: flex; gap: 4px; margin-bottom: 20px; background: #000; padding: 4px; border-radius: 6px; border: 1px solid var(--border); }
+.auth-tab { flex: 1; padding: 12px; text-align: center; cursor: pointer; border-radius: 4px; font-family: 'Cinzel', serif; font-size: 13px; text-transform: uppercase; transition: all 0.2s; color: var(--text-mute); }
+.auth-tab.active { background: var(--border-bright); color: #fff; box-shadow: inset 0 0 10px rgba(0,0,0,0.5); }
+.auth-form { display: none; flex-direction: column; gap: 16px; }
+.auth-form.active { display: flex; }
+.auth-input { width: 100%; padding: 14px 16px; background: #000; border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-size: 15px; outline: none; transition: all 0.2s; }
+.auth-input:focus { border-color: var(--gold); }
+.auth-btn { width: 100%; padding: 14px; background: linear-gradient(180deg, #b52c2c, #7a1212); border: 1px solid #ff6060; border-radius: 4px; color: #fff; font-family: 'Cinzel', serif; font-size: 15px; font-weight: 700; cursor: pointer; transition: all 0.2s; text-shadow: 1px 1px 2px #000; }
+.auth-btn:hover { background: linear-gradient(180deg, #d33c3c, #9c1717); filter: brightness(1.2); }
+.auth-error { color: #ff5050; font-size: 13px; text-align: center; min-height: 16px; font-weight: 600; }
+
+/* HEADER */
+.game-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; background: var(--panel-bg); border: 2px solid var(--border-bright); border-radius: 8px; margin-bottom: 20px; box-shadow: 0 10px 20px rgba(0,0,0,0.8); flex-wrap: wrap; gap: 10px; }
+.game-title { font-size: 26px; font-weight: 900; color: var(--gold); text-shadow: 2px 2px 4px #000; }
+.game-subtitle { font-size: 11px; color: var(--text-dim); letter-spacing: 0.2em; text-transform: uppercase; margin-top: 4px; }
+
+/* MODALS */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); display: none; align-items: center; justify-content: center; z-index: 500; }
+.modal-overlay.active { display: flex; }
+.modal-box { background: var(--panel-bg); border: 2px solid var(--border-bright); border-radius: 8px; padding: 30px; max-width: 600px; width: 90%; max-height: 85vh; overflow-y: auto; box-shadow: 0 0 50px #000; }
+.modal-title { font-family: 'Cinzel', serif; font-size: 24px; color: var(--gold); text-align: center; margin-bottom: 20px; text-transform: uppercase; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
+
+/* CLASS SELECT */
+.char-select-intro { text-align: center; padding: 20px; }
+.char-select-intro h1 { font-size: 56px; font-weight: 900; background: linear-gradient(180deg, var(--gold-bright), var(--gold)); -webkit-background-clip: text; background-clip: text; color: transparent; text-shadow: 0 0 20px rgba(255,184,48,0.3); }
+.char-select-intro p { color: var(--text-dim); font-size: 14px; letter-spacing: 0.2em; text-transform: uppercase; margin-top: 5px; }
+.role-tabs { display: flex; justify-content: center; gap: 4px; margin: 20px 0; }
+.role-tab { padding: 10px 28px; background: #000; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; font-family: 'Cinzel', serif; font-size: 13px; text-transform: uppercase; transition: all 0.2s; color: var(--text-mute); }
+.role-tab.active { background: var(--border-bright); border-color: var(--gold); color: #fff; }
+.class-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; max-width: 1300px; margin: 0 auto; }
+.class-card { background: var(--panel-bg); border: 1px solid var(--border); border-radius: 8px; padding: 20px; cursor: pointer; transition: all 0.2s; text-align: center; position: relative; overflow: hidden; }
+.class-card:hover { border-color: var(--class-color, var(--gold)); background: #111; box-shadow: 0 0 15px rgba(255,255,255,0.1); transform: translateY(-3px); }
+.class-icon { width: 64px; height: 64px; margin: 0 auto 12px; display: flex; align-items: center; justify-content: center; background: #000; border: 2px solid var(--class-color, var(--gold)); border-radius: 50%; }
+.class-icon svg { width: 36px; height: 36px; fill: var(--class-color, var(--gold)); }
+.class-name { font-family: 'Cinzel', serif; font-size: 18px; color: var(--class-color, var(--gold)); margin-bottom: 4px; font-weight: bold; }
+.class-title { font-size: 11px; color: var(--text-dim); margin-bottom: 8px; }
+.role-badge { font-size: 10px; padding: 3px 8px; border-radius: 4px; text-transform: uppercase; margin: 2px; display: inline-block; font-weight: 600; }
+.role-badge.tank { background: rgba(77,126,255,0.15); color: var(--tank); border: 1px solid var(--tank); }
+.role-badge.healer { background: rgba(30,255,0,0.15); color: var(--healer); border: 1px solid var(--healer); }
+.role-badge.dps { background: rgba(255,96,96,0.15); color: var(--dps); border: 1px solid var(--dps); }
+.spec-card { background: #111; border: 1px solid #333; border-radius: 8px; padding: 16px; cursor: pointer; margin-bottom: 12px; display: flex; gap: 14px; align-items: center; transition: all 0.2s; }
+.spec-card:hover { border-color: var(--gold); transform: translateX(5px); }
+
+/* TOWN */
+.town-container { display: grid; grid-template-columns: 340px 1fr; gap: 20px; }
+@media (max-width: 1000px) { .town-container { grid-template-columns: 1fr; } }
+.player-panel { background: var(--panel-bg); border: 2px solid var(--border-bright); border-radius: 8px; padding: 24px; position: relative; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.8); }
+.player-avatar { width: 100px; height: 100px; margin: 0 auto 12px; border: 2px solid var(--gold); border-radius: 50%; overflow: hidden; background: #000; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 20px rgba(255,184,48,0.2); }
+.player-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.player-avatar svg { width: 56px; height: 56px; fill: var(--gold); }
+.player-name { font-family: 'Cinzel', serif; font-size: 22px; text-align: center; color: var(--gold); }
+.player-level { text-align: center; font-size: 13px; color: var(--text-dim); margin-bottom: 18px; text-transform: uppercase; letter-spacing: 0.1em; }
+.resource-bar { margin-bottom: 8px; position: relative; }
+.bar-track { height: 18px; background: #000; border: 1px solid #333; border-radius: 2px; overflow: hidden; position: relative; box-shadow: inset 0 2px 5px rgba(0,0,0,0.8); }
+.bar-fill { height: 100%; transition: width 0.4s ease-out; }
+.bar-text { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: bold; color: #fff; text-shadow: 1px 1px 1px #000, -1px -1px 1px #000; z-index: 2; letter-spacing: 0.1em; pointer-events: none; }
+.bar-hp .bar-fill { background: linear-gradient(180deg, #43b043, #1c6b1c); }
+.bar-mana .bar-fill { background: linear-gradient(180deg, #3b88d6, #144e8a); }
+.bar-xp .bar-fill { background: linear-gradient(180deg, #a335ee, #5a1985); }
+.stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; margin-top: 15px; }
+.stat-box { background: #000; border: 1px solid var(--border); border-radius: 4px; padding: 8px; display: flex; justify-content: space-between; font-size: 12px; align-items: center; }
+.stat-label { color: var(--text-dim); font-size: 10px; text-transform: uppercase; }
+.stat-value { color: var(--gold-bright); font-weight: bold; }
+
+.action-area { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+.action-card { background: var(--panel-bg); border: 1px solid var(--border); border-radius: 8px; padding: 24px; cursor: pointer; transition: all 0.3s; min-height: 160px; display: flex; flex-direction: column; justify-content: space-between; position: relative; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+.action-card:hover:not(.disabled) { border-color: var(--gold); background: #1a1a1a; transform: translateY(-3px); box-shadow: 0 10px 25px rgba(0,0,0,0.8); }
+.action-card.disabled { opacity: 0.4; pointer-events: none; filter: grayscale(1); }
+.action-title { font-family: 'Cinzel', serif; font-size: 20px; color: var(--gold); margin-bottom: 6px; }
+.action-desc { font-size: 13px; color: var(--text-dim); margin-bottom: 12px; line-height: 1.4; }
+.action-meta { font-size: 11px; color: var(--text-mute); text-transform: uppercase; letter-spacing: 0.1em; padding-top: 8px; border-top: 1px solid var(--border); }
+
+/* MAP ENHANCEMENTS */
+.map-container { display: grid; grid-template-columns: 1fr 300px; gap: 20px; }
+@media (max-width: 1000px) { .map-container { grid-template-columns: 1fr; } }
+#map-canvas { width: 100%; height: 600px; background: #000; border-radius: 8px; cursor: pointer; border: 2px solid var(--border-bright); box-shadow: 0 0 20px #000; }
+.map-sidebar { background: var(--panel-bg); border: 2px solid var(--border-bright); border-radius: 8px; padding: 20px; }
+
+/* COMBAT UNIT FRAMES */
+.combat-arena { background: url('https://www.transparenttextures.com/patterns/dark-matter.png'), linear-gradient(180deg, #111, #050505); border: 2px solid var(--border-bright); border-radius: 8px; padding: 20px; box-shadow: 0 10px 40px #000; }
+.combat-stage { display: flex; justify-content: space-between; align-items: flex-start; min-height: 250px; position: relative; padding: 20px; }
+.unit-frame { display: flex; background: #000; border: 2px solid #333; border-radius: 40px 8px 8px 40px; padding: 4px; padding-right: 15px; align-items: center; gap: 12px; width: 320px; position: relative; box-shadow: 2px 2px 10px rgba(0,0,0,0.8); }
+.unit-frame.target-frame { border-radius: 8px 40px 40px 8px; padding-left: 15px; padding-right: 4px; flex-direction: row-reverse; }
+.unit-portrait { width: 64px; height: 64px; border-radius: 50%; border: 2px solid var(--gold); background: #222; display: flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0; box-shadow: inset 0 0 10px #000; }
+.unit-portrait img { width: 100%; height: 100%; object-fit: cover; }
+.unit-portrait .emoji { font-size: 32px; filter: drop-shadow(0 2px 3px rgba(0,0,0,0.8)); }
+.unit-info { flex-grow: 1; display: flex; flex-direction: column; gap: 4px; }
+.unit-name { font-family: 'Cinzel', serif; font-size: 14px; font-weight: bold; color: var(--gold); text-shadow: 1px 1px 0 #000; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.target-frame .unit-name { text-align: right; }
+.unit-level { position: absolute; bottom: -5px; left: 25px; background: #000; border: 1px solid var(--gold); border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: bold; color: var(--gold); z-index: 5; }
+.target-frame .unit-level { left: auto; right: 25px; }
+.elite-dragon { position: absolute; top: -15px; right: 40px; font-size: 30px; transform: scaleX(-1); pointer-events: none; z-index: 10; filter: drop-shadow(0 2px 2px #000); }
+
+.ability-bar { display: grid; grid-template-columns: repeat(4, 1fr) auto auto; gap: 8px; margin-top: 20px; padding: 12px; background: rgba(0,0,0,0.8); border: 1px solid var(--border); border-radius: 6px; }
+.ability-btn { background: #111; border: 1px solid #444; border-radius: 4px; padding: 10px; cursor: pointer; transition: all 0.2s; text-align: center; position: relative; min-height: 60px; box-shadow: inset 0 0 10px rgba(0,0,0,0.8); display:flex; flex-direction:column; justify-content:center; }
+.ability-btn:hover:not(:disabled) { border-color: var(--gold); background: #222; }
+.ability-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.ability-name { font-family: 'Cinzel', serif; font-size: 12px; color: #fff; font-weight: bold; margin-bottom: 4px; }
+.ability-cost { font-size: 10px; color: var(--mana); }
+.ability-cd { position: absolute; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; color: #fff; }
+
+.potion-btn { background: #111; border: 2px solid var(--health); border-radius: 4px; padding: 10px; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; width: 60px; position: relative; }
+.potion-btn.mana { border-color: var(--mana); }
+.potion-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.potion-icon { font-size: 20px; filter: drop-shadow(0 2px 2px #000); }
+.potion-count { position: absolute; bottom: 2px; right: 4px; background: rgba(0,0,0,0.8); color: #fff; font-size: 10px; padding: 1px 4px; border-radius: 3px; font-weight: bold; }
+
+.combat-log { margin-top: 15px; background: #000; border: 1px solid var(--border); padding: 10px; height: 120px; overflow-y: auto; font-size: 12px; border-radius: 4px; }
+.log-entry { padding: 3px 0; border-bottom: 1px solid #1a1a1a; color: var(--text-dim); }
+
+/* INVENTORY (WOW CHARACTER PANE) */
+.char-pane-wrapper { display: grid; grid-template-columns: 70px 1fr 70px 280px; gap: 15px; background: var(--panel-bg); border: 2px solid var(--border-bright); border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.9); align-items: stretch; }
+@media (max-width: 900px) { .char-pane-wrapper { grid-template-columns: 1fr 1fr; } .wow-stats-panel { grid-column: 1 / -1; } .char-center-col { grid-column: 1 / -1; order: -1; } .equip-col { flex-direction:row!important; flex-wrap:wrap; justify-content:center; } }
+
+.equip-col { display: flex; flex-direction: column; gap: 8px; }
+.wow-equip-slot { width: 50px; height: 50px; background: #0a0a0a; border: 2px solid #333; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 24px; cursor: pointer; position: relative; transition: border 0.2s; box-shadow: inset 0 0 15px #000; }
+.wow-equip-slot:hover { border-color: var(--gold); }
+.wow-equip-slot.filled { border-style: solid; box-shadow: 0 0 5px rgba(0,0,0,0.8); }
+
+.wow-tooltip { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); background: #050510; border: 1px solid var(--gold); border-radius: 4px; padding: 8px 12px; font-size: 11px; white-space: nowrap; display: none; z-index: 100; margin-top: 8px; pointer-events: none; box-shadow: 2px 2px 10px rgba(0,0,0,0.9); text-align: left; line-height: 1.4; }
+.wow-equip-slot:hover .wow-tooltip, .bag-slot:hover .wow-tooltip, .item-card:hover .wow-tooltip { display: block; }
+.tt-name { font-size: 13px; font-weight: bold; margin-bottom: 4px; }
+.tt-type { color: #fff; margin-bottom: 6px; border-bottom: 1px solid #333; padding-bottom: 2px; text-transform:uppercase; }
+
+.char-center-col { display: flex; align-items: center; justify-content: center; background: radial-gradient(circle, #1a1a2e, #050505); border: 1px solid #222; border-radius: 4px; min-height: 300px; box-shadow: inset 0 0 40px #000; }
+.char-center-col svg { width: 140px; height: 140px; fill: var(--border-bright); opacity: 0.5; }
+
+.wow-stats-panel { background: #0a0a0a; border: 1px solid #222; border-radius: 4px; padding: 12px; }
+.stat-header { background: #1a1a1a; color: var(--gold); font-family: 'Cinzel', serif; font-size: 12px; font-weight: bold; text-align: center; padding: 4px; margin: 10px 0 6px 0; border: 1px solid #333; }
+.stat-header:first-child { margin-top: 0; }
+.stat-ilvl { text-align: center; font-size: 24px; color: var(--gold-bright); margin-bottom: 10px; font-family: 'Cinzel', serif; }
+.stat-row { display: flex; justify-content: space-between; font-size: 12px; color: #ccc; padding: 3px 8px; }
+.stat-row:nth-child(even) { background: #111; }
+.stat-row .val { color: #fff; font-weight: bold; }
+
+.bag-container { background: var(--panel-bg); border: 2px solid var(--border-bright); border-radius: 8px; padding: 15px; margin-top: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); }
+.bag-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 4px; }
+.bag-slot { width: 44px; height: 44px; background: #000; border: 1px solid #333; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 20px; cursor: pointer; position: relative; box-shadow: inset 0 0 10px #000; }
+.bag-slot:hover { filter: brightness(1.3); }
+
+/* SHOP & PVP SHOP */
+.shop-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; max-height: 50vh; overflow-y: auto; padding: 5px; }
+.item-card { background: var(--bg-3); border: 1px solid var(--rarity-color, var(--common)); border-radius: 8px; padding: 12px; cursor: pointer; transition: all 0.2s; text-align: center; position:relative; }
+.item-card:hover { transform: translateY(-3px); box-shadow: 0 5px 15px var(--rarity-color, var(--common)); filter: brightness(1.1); }
+.item-icon { font-size: 32px; margin-bottom: 6px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.9)); }
+.item-name { font-family: 'Cinzel', serif; font-size: 12px; color: var(--rarity-color, var(--common)); margin-bottom: 4px; line-height: 1.2; font-weight:bold; }
+.item-slot { font-size: 10px; color: var(--text-dim); margin-bottom: 6px; text-transform: uppercase; }
+.item-price { font-size: 12px; color: var(--gold-bright); font-weight: 700; }
+
+.btn { background: #1a1a1a; border: 1px solid #444; border-radius: 4px; padding: 8px 16px; color: #fff; font-family: 'Cinzel', serif; font-size: 12px; cursor: pointer; transition: all 0.2s; font-weight: bold; }
+.btn:hover { border-color: var(--gold); background: #2a2a2a; color: var(--gold); }
+.btn-primary { background: linear-gradient(180deg, #b52c2c, #7a1212); border-color: #ff6060; color: #fff; }
+.btn-primary:hover { background: linear-gradient(180deg, #d33c3c, #9c1717); color: #fff; }
+.btn-danger { border-color: #ff5050; color: #ff5050; }
+
+.toast { position: fixed; top: 20px; right: 20px; background: #000; border: 1px solid var(--gold); border-radius: 4px; padding: 12px 20px; color: var(--gold); z-index: 1000; animation: toastIn 0.4s, toastOut 0.4s 2.6s forwards; box-shadow: 0 4px 15px rgba(0,0,0,0.9); font-weight: bold; font-family: 'Cinzel', serif; }
+@keyframes toastIn { from { opacity: 0; transform: translateX(100px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes toastOut { to { opacity: 0; transform: translateX(100px); } }
+
+.r-common { border-color: #9d9d9d !important; color: #9d9d9d; }
+.r-uncommon { border-color: #1eff00 !important; color: #1eff00; }
+.r-rare { border-color: #0070dd !important; color: #0070dd; }
+.r-epic { border-color: #a335ee !important; color: #a335ee; }
+.r-legendary { border-color: #ff8000 !important; color: #ff8000; }
+
+.online-list { margin-top: 20px; background: #0a0a0a; border: 1px solid #333; border-radius: 4px; padding: 12px; max-height: 200px; overflow-y: auto; }
+.online-player { display: flex; justify-content: space-between; align-items: center; padding: 6px; border-bottom: 1px solid #222; font-size: 12px; }
+.online-dot { width: 6px; height: 6px; background: var(--uncommon); border-radius: 50%; margin-right: 8px; display: inline-block; box-shadow: 0 0 5px var(--uncommon); }
+
+/* Global Emoji Enhancement */
+.wow-equip-slot, .bag-slot {
+  filter: drop-shadow(0 2px 3px rgba(0,0,0,0.8));
+}
+</style>
+</head>
+<body>
+
+<div id="game">
+  <section id="screen-auth" class="screen active">
+    <div class="auth-container">
+      <div class="auth-title">Azeroth Board</div>
+      <div class="auth-subtitle">Cloud Save MMO Board Game</div>
+      <div class="auth-tabs">
+        <div class="auth-tab active" data-form="login">Login</div>
+        <div class="auth-tab" data-form="register">Register</div>
+      </div>
+      <div class="auth-form active" id="form-login">
+        <input type="text" class="auth-input" id="login-username" placeholder="Username">
+        <input type="password" class="auth-input" id="login-password" placeholder="Password">
+        <div class="auth-error" id="login-error"></div>
+        <button class="auth-btn" onclick="handleLogin()">Enter World</button>
+      </div>
+      <div class="auth-form" id="form-register">
+        <input type="text" class="auth-input" id="reg-username" placeholder="Choose Username">
+        <input type="password" class="auth-input" id="reg-password" placeholder="Choose Password">
+        <div class="auth-error" id="reg-error"></div>
+        <button class="auth-btn" onclick="handleRegister()">Create Account</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="screen-character" class="screen">
+    <div class="char-select-intro">
+      <h1>AZEROTH BOARD</h1>
+      <p>MMO Board Game · 13 Classes · 39 Specs · Max Level 60</p>
+    </div>
+    <div class="role-tabs" id="role-tabs">
+      <div class="role-tab active" data-filter="all">All</div>
+      <div class="role-tab" data-filter="tank">Tank</div>
+      <div class="role-tab" data-filter="healer">Healer</div>
+      <div class="role-tab" data-filter="dps">DPS</div>
+    </div>
+    <div class="class-grid" id="class-grid"></div>
+  </section>
+
+  <section id="screen-town" class="screen">
+    <div class="game-header">
+      <div><div class="game-title">Stormwind Keep</div><div class="game-subtitle">Sanctuary Town Hub</div></div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn" onclick="showScreen('inventory'); renderInventory();">Character</button>
+        <button class="btn" onclick="openShop()">Vendor</button>
+        <button class="btn" onclick="openPvPShop()">PvP Shop</button>
+        <button class="btn" onclick="openChangePassword()">Account</button>
+        <button class="btn" onclick="saveGame(true)">Save</button>
+        <button class="btn btn-danger" onclick="handleLogout()">Logout</button>
+      </div>
+    </div>
+    <div class="town-container">
+      <div class="player-panel" id="player-panel"></div>
+      <div>
+        <div class="action-area" id="action-area"></div>
+        <div class="online-list" id="online-list-container"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="screen-map" class="screen">
+    <div class="game-header">
+      <div><div class="game-title" id="map-title">World Map</div><div class="game-subtitle" id="map-subtitle">Zone</div></div>
+      <div style="display:flex; gap:8px;">
+        <button class="btn" onclick="showMapInventory()">Character</button>
+        <button class="btn" onclick="returnToTown()">Return</button>
+      </div>
+    </div>
+    <div class="map-container">
+      <div style="position:relative;"><canvas id="map-canvas" width="900" height="600"></canvas></div>
+      <div class="map-sidebar">
+        <div class="stat-header">Tile Information</div>
+        <div id="tile-info" style="font-size:13px; color:var(--text-dim); padding:10px;">Click a tile to inspect. Adjacent tiles glow yellow.</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="screen-combat" class="screen">
+    <div class="game-header">
+      <div><div class="game-title" id="combat-title">Combat</div><div class="game-subtitle" id="combat-subtitle">Engaged</div></div>
+      <button class="btn" onclick="tryFlee()" id="flee-btn">Flee</button>
+    </div>
+    <div class="combat-arena">
+      <div class="combat-stage" id="combat-stage">
+        <div class="unit-frame player-frame" id="uf-player"></div>
+        <div class="unit-frame target-frame" id="uf-enemy"></div>
+        <div id="damage-numbers" style="position:absolute; inset:0; pointer-events:none;"></div>
+      </div>
+      <div class="ability-bar" id="ability-bar"></div>
+      <div class="combat-log" id="combat-log"></div>
+    </div>
+  </section>
+
+  <section id="screen-inventory" class="screen">
+    <div class="game-header">
+      <div><div class="game-title">Character Info</div><div class="game-subtitle">Equipment & Stats</div></div>
+      <button class="btn" onclick="goBackFromInv()">Close</button>
+    </div>
+    <div class="char-pane-wrapper">
+      <div class="equip-col" id="equip-left-col"></div>
+      <div class="char-center-col" id="char-center-col"></div>
+      <div class="equip-col" id="equip-right-col"></div>
+      <div class="wow-stats-panel" id="stats-panel-col"></div>
+    </div>
+    <div class="bag-container">
+      <div class="stat-header" style="text-align:left; padding-left:10px;">Backpack</div>
+      <div class="bag-grid" id="inventory-grid"></div>
+    </div>
+  </section>
+
+  <section id="screen-result" class="screen">
+    <div style="text-align: center; padding: 60px 20px; background:var(--panel-bg); border:2px solid var(--border-bright); margin-top:50px; border-radius:8px;" id="result-content"></div>
+  </section>
+</div>
+
+<div class="modal-overlay" id="modal-overlay"></div>
+<div id="toast-container"></div>
+
+<script>
+// --- CORE DATA & CONSTANTS ---
+const API_URL = 'https://script.google.com/macros/s/AKfycbyEy7sydHjkIRVKYEIMNJ8Of2zVCvN5mu-vQbNn3iElp5yQzD_uF8Mn4r7ZB-TxOE3kZw/exec';
+const MAX_LEVEL = 60;
+
+const CLASS_ICONS = {
+  warrior: 'M12 2L4 6v6c0 4 3 7 8 7s8-3 8-7V6l-8-4zm0 3l5 2v4c0 3-2 5-5 5s-5-2-5-5V7l5-2zM10 9h4v6h-4z',
+  paladin: 'M10 2h4v4h2v4h-2v3l2 2v7h-3v-4h-2v4H8v-7l2-2v-3H8V6h2V2zm2 8a2 2 0 100 4 2 2 0 000-4z',
+  hunter: 'M4 3c0 8 5 14 13 14M4 21c0-8 5-14 13-14M4 3v18M17 7l4 7-4 7M9 12h12',
+  rogue: 'M3 9c3-2 15-2 18 0v3c0 4-4 10-9 10s-9-6-9-10V9zm5 3v2h2v-2H8zm6 0v2h2v-2h-2z',
+  priest: 'M12 2c2 0 3 1 3 3s-1 3-3 3-3-1-3-3 1-3 3-3zM11 8h2v3l3 2v9h-2v-6h-2v6h-2v-9l3-2V8z',
+  shaman: 'M13 2L5 14h5l-3 8 11-12h-5l3-8z',
+  mage: 'M12 1c6 0 10 5 10 10 0 4-3 7-6 8 1-2 1-5-1-6-2 3-6 4-9 2-3-1-5-5-3-9 1-3 5-5 9-5zm0 8a2 2 0 100 4 2 2 0 000-4z',
+  warlock: 'M6 2l3 5M18 2l-3 5M5 8c0-2 3-3 7-3s7 1 7 3v5l-2 2v6h-3v-4h-4v4H7v-6l-2-2V8zm5 4a1 1 0 100 2 1 1 0 000-2zm4 0a1 1 0 100 2 1 1 0 000-2z',
+  monk: 'M8 3h8v3l2 2v5l-2 2v3h2v4h-3v-2h-6v2H6v-4h2v-3l-2-2V8l2-2V3zm3 6a1 1 0 100 2 1 1 0 000-2zm2 0a1 1 0 100 2 1 1 0 000-2z',
+  druid: 'M4 2c1 5 2 8 2 12M8 2c1 5 1 8 1 12M12 2v12M16 2c-1 5-1 8-1 12M20 2c-1 5-2 8-2 12M6 14h12l-2 8H8l-2-8z',
+  death_knight: 'M12 2c-4 0-7 3-7 7v4l1 2v6h3v-3l-2-1V9c0-3 2-5 5-5s5 2 5 5v8l-2 1v3h3v-6l1-2V9c0-4-3-7-7-7zm-3 9a1 1 0 100 2 1 1 0 000-2zm6 0a1 1 0 100 2 1 1 0 000-2z',
+  demon_hunter: 'M2 2l6 4M22 2l-6 4M6 6c0-2 3-3 6-3s6 1 6 3v5l-2 2v8h-3v-6h-2v6H8v-8l-2-2V6zm3 5a1 1 0 100 2 1 1 0 000-2zm6 0a1 1 0 100 2 1 1 0 000-2z',
+  evoker: 'M4 4l6 3 2-4 2 4 6-3-3 7 3 9-6-4-2 3-2-3-6 4 3-9-3-7z'
+};
+const SLOT_ICONS = { head: '🪖', shoulders: '🦅', chest: '🦺', hands: '🧤', legs: '👖', feet: '🥾', weapon: '⚔️', offhand: '🛡️' };
+
+const ROLE_MODS = { 
+  tank: { hpMult: 1.8, manaMult: 0.7, atkMult: 0.8, defMult: 2.0, critMult: 0.6, speedMult: 0.8 }, 
+  healer: { hpMult: 1.0, manaMult: 1.8, atkMult: 0.75, defMult: 1.1, critMult: 0.8, speedMult: 1.0 }, 
+  dps: { hpMult: 0.95, manaMult: 1.0, atkMult: 1.25, defMult: 0.85, critMult: 1.3, speedMult: 1.2 } 
+};
+const ROLE_ABILITY_TEMPLATES = {
+  tank: [
+    { cost: 0, cd: 0, dmg: 1.0, type: 'physical', desc: 'Basic melee.' }, 
+    { cost: 15, cd: 2, dmg: 1.5, type: 'physical', desc: '150% dmg + shield.', buff: { type: 'def', value: 0.4, duration: 1 } }, 
+    { cost: 20, cd: 3, dmg: 1.3, type: 'physical', desc: 'AoE 130% dmg.', aoe: true }, 
+    { cost: 30, cd: 5, dmg: 0, type: 'buff', desc: 'Def 50%, heal 20%.', buff: { type: 'def', value: 0.5, duration: 3 }, heal: 0.2 }
+  ],
+  healer: [
+    { cost: 0, cd: 0, dmg: 0.85, type: 'magic', desc: 'Dmg + heal 8%.', selfHeal: 0.08 }, 
+    { cost: 15, cd: 2, dmg: 0, type: 'heal', desc: 'Heal 45%.', heal: 0.45 }, 
+    { cost: 20, cd: 3, dmg: 1.1, type: 'magic', desc: '110% dmg + heal.', heal: 0.15 }, 
+    { cost: 35, cd: 5, dmg: 0, type: 'heal', desc: 'Full restore + def.', heal: 0.85, buff: { type: 'def', value: 0.25, duration: 3 } }
+  ],
+  dps: [
+    { cost: 0, cd: 0, dmg: 1.0, type: 'physical', desc: 'Basic attack.' }, 
+    { cost: 15, cd: 2, dmg: 1.85, type: 'physical', desc: '185% dmg.' }, 
+    { cost: 22, cd: 3, dmg: 1.4, type: 'physical', desc: 'AoE 140% dmg.', aoe: true }, 
+    { cost: 30, cd: 5, dmg: 0, type: 'buff', desc: '+40% dmg 3 turns.', buff: { type: 'atk', value: 0.4, duration: 3 } }
+  ]
+};
+
+const CLASSES = {
+  warrior: { name: 'Warrior', color: '#C79C6E', title: 'Master of Arms', baseStats: { hp: 150, mana: 50, atk: 22, def: 15, crit: 8, speed: 9 }, specs: { fury: { name: 'Fury', role: 'dps', desc: 'Berserker rage, dual-wielding.', abilities: ['Bloodthirst', 'Raging Blow', 'Whirlwind', 'Recklessness'] }, arms: { name: 'Arms', role: 'dps', desc: 'Tactical two-handed master.', abilities: ['Mortal Strike', 'Overpower', 'Cleave', 'Colossus Smash'] }, protection: { name: 'Protection', role: 'tank', desc: 'Stalwart shield-bearer.', abilities: ['Shield Slam', 'Revenge', 'Thunder Clap', 'Shield Wall'] } } },
+  paladin: { name: 'Paladin', color: '#F58CBA', title: 'Knight of the Silver Hand', baseStats: { hp: 145, mana: 70, atk: 20, def: 16, crit: 7, speed: 8 }, specs: { retribution: { name: 'Retribution', role: 'dps', desc: 'Divine wrath, two-handed hammer.', abilities: ['Crusader Strike', "Templar's Verdict", 'Divine Storm', 'Avenging Wrath'] }, holy: { name: 'Holy', role: 'healer', desc: 'Channeler of the Light.', abilities: ['Holy Shock', 'Flash of Light', 'Light of Dawn', 'Lay on Hands'] }, protection: { name: 'Protection', role: 'tank', desc: 'Holy shield-bearer.', abilities: ['Shield of the Righteous', 'Hammer of the Righteous', "Avenger's Shield", 'Ardent Defender'] } } },
+  hunter: { name: 'Hunter', color: '#ABD473', title: 'Ranger of the Wilds', baseStats: { hp: 110, mana: 80, atk: 24, def: 9, crit: 15, speed: 12 }, specs: { beast_mastery: { name: 'Beast Mastery', role: 'dps', desc: 'Master of beasts.', abilities: ['Kill Command', 'Cobra Shot', 'Multi-Shot', 'Bestial Wrath'] }, marksmanship: { name: 'Marksmanship', role: 'dps', desc: 'Precision sniper.', abilities: ['Aimed Shot', 'Rapid Fire', 'Chimaera Shot', 'Trueshot'] }, survival: { name: 'Survival', role: 'dps', desc: 'Melee hunter with traps.', abilities: ['Raptor Strike', 'Kill Command', 'Butchery', 'Coordinated Assault'] } } },
+  rogue: { name: 'Rogue', color: '#FFF569', title: 'Shadow Assassin', baseStats: { hp: 105, mana: 100, atk: 23, def: 8, crit: 18, speed: 14 }, specs: { assassination: { name: 'Assassination', role: 'dps', desc: 'Master of poisons.', abilities: ['Mutilate', 'Envenom', 'Fan of Knives', 'Vendetta'] }, outlaw: { name: 'Outlaw', role: 'dps', desc: 'Swashbuckling pirate.', abilities: ['Sinister Strike', 'Dispatch', 'Blade Flurry', 'Adrenaline Rush'] }, subtlety: { name: 'Subtlety', role: 'dps', desc: 'Shadow dancer.', abilities: ['Backstab', 'Eviscerate', 'Shadow Dance', 'Shadow Blades'] } } },
+  priest: { name: 'Priest', color: '#FFFFFF', title: 'Voice of the Light', baseStats: { hp: 100, mana: 130, atk: 18, def: 8, crit: 8, speed: 9 }, specs: { shadow: { name: 'Shadow', role: 'dps', desc: 'Void magic, insanity.', abilities: ['Mind Flay', 'Mind Blast', 'Shadow Crash', 'Voidform'] }, holy: { name: 'Holy', role: 'healer', desc: 'Pure Light healing.', abilities: ['Smite', 'Heal', 'Holy Nova', 'Divine Hymn'] }, discipline: { name: 'Discipline', role: 'healer', desc: 'Atonement healing.', abilities: ['Penance', 'Power Word: Solace', 'Power Word: Radiance', 'Rapture'] } } },
+  shaman: { name: 'Shaman', color: '#0070DE', title: 'Speaker of the Elements', baseStats: { hp: 115, mana: 100, atk: 20, def: 10, crit: 10, speed: 10 }, specs: { elemental: { name: 'Elemental', role: 'dps', desc: 'Lightning and lava.', abilities: ['Lightning Bolt', 'Lava Burst', 'Earthquake', 'Ascendance'] }, enhancement: { name: 'Enhancement', role: 'dps', desc: 'Melee elemental weapons.', abilities: ['Stormstrike', 'Lava Lash', 'Crash Lightning', 'Feral Spirit'] }, restoration: { name: 'Restoration', role: 'healer', desc: 'Water and earth restoration.', abilities: ['Healing Wave', 'Chain Heal', 'Healing Rain', 'Spirit Link Totem'] } } },
+  mage: { name: 'Mage', color: '#69CCF0', title: 'Master of the Arcane', baseStats: { hp: 90, mana: 120, atk: 26, def: 6, crit: 12, speed: 10 }, specs: { arcane: { name: 'Arcane', role: 'dps', desc: 'Mana manipulation.', abilities: ['Arcane Blast', 'Arcane Missiles', 'Arcane Explosion', 'Arcane Power'] }, fire: { name: 'Fire', role: 'dps', desc: 'Flame and pyrotechnics.', abilities: ['Fireball', 'Pyroblast', 'Flamestrike', 'Combustion'] }, frost: { name: 'Frost', role: 'dps', desc: 'Ice mastery.', abilities: ['Frostbolt', 'Ice Lance', 'Blizzard', 'Icy Veins'] } } },
+  warlock: { name: 'Warlock', color: '#9482C9', title: 'Master of Demons', baseStats: { hp: 95, mana: 110, atk: 24, def: 7, crit: 10, speed: 9 }, specs: { affliction: { name: 'Affliction', role: 'dps', desc: 'Slow agonizing death.', abilities: ['Shadow Bolt', 'Agony', 'Seed of Corruption', 'Dark Soul'] }, demonology: { name: 'Demonology', role: 'dps', desc: 'Summoner of demons.', abilities: ['Shadow Bolt', 'Call Dreadstalkers', 'Implosion', 'Demonbolt'] }, destruction: { name: 'Destruction', role: 'dps', desc: 'Chaos bolts.', abilities: ['Incinerate', 'Chaos Bolt', 'Rain of Fire', 'Havoc'] } } },
+  monk: { name: 'Monk', color: '#00FF96', title: 'Master of Chi', baseStats: { hp: 120, mana: 80, atk: 21, def: 12, crit: 10, speed: 13 }, specs: { windwalker: { name: 'Windwalker', role: 'dps', desc: 'Martial arts strikes.', abilities: ['Tiger Palm', 'Blackout Kick', 'Spinning Crane Kick', 'Touch of Death'] }, brewmaster: { name: 'Brewmaster', role: 'tank', desc: 'Drunken brawler.', abilities: ['Keg Smash', 'Tiger Palm', 'Breath of Fire', 'Fortifying Brew'] }, mistweaver: { name: 'Mistweaver', role: 'healer', desc: 'Soothing mists.', abilities: ['Tiger Palm', 'Vivify', 'Essence Font', 'Revival'] } } },
+  druid: { name: 'Druid', color: '#FF7D0A', title: 'Guardian of the Wild', baseStats: { hp: 115, mana: 90, atk: 20, def: 11, crit: 9, speed: 10 }, specs: { feral: { name: 'Feral', role: 'dps', desc: 'Cat form bleeds.', abilities: ['Shred', 'Ferocious Bite', 'Swipe', 'Berserk'] }, balance: { name: 'Balance', role: 'dps', desc: 'Moonkin, lunar magic.', abilities: ['Moonfire', 'Starsurge', 'Starfall', 'Celestial Alignment'] }, guardian: { name: 'Guardian', role: 'tank', desc: 'Bear form thick hide.', abilities: ['Mangle', 'Thrash', 'Swipe', 'Survival Instincts'] }, restoration: { name: 'Restoration', role: 'healer', desc: 'Nature healing.', abilities: ['Wrath', 'Healing Touch', 'Wild Growth', 'Tranquility'] } } },
+  death_knight: { name: 'Death Knight', color: '#C41F3B', title: 'Champion of the Ebon Blade', baseStats: { hp: 140, mana: 60, atk: 23, def: 14, crit: 8, speed: 8 }, specs: { frost: { name: 'Frost', role: 'dps', desc: 'Ice and runic power.', abilities: ['Frost Strike', 'Obliterate', 'Howling Blast', 'Pillar of Frost'] }, unholy: { name: 'Unholy', role: 'dps', desc: 'Diseases and undead.', abilities: ['Scourge Strike', 'Festering Strike', 'Death and Decay', 'Summon Gargoyle'] }, blood: { name: 'Blood', role: 'tank', desc: 'Vampiric tank.', abilities: ['Heart Strike', 'Death Strike', 'Blood Boil', 'Vampiric Blood'] } } },
+  demon_hunter: { name: 'Demon Hunter', color: '#A330C9', title: 'Illidari Slayer', baseStats: { hp: 110, mana: 50, atk: 25, def: 10, crit: 14, speed: 15 }, specs: { havoc: { name: 'Havoc', role: 'dps', desc: 'Chaos damage.', abilities: ['Chaos Strike', 'Annihilation', 'Eye Beam', 'Metamorphosis'] }, vengeance: { name: 'Vengeance', role: 'tank', desc: 'Demon spikes.', abilities: ['Shear', 'Fracture', 'Spirit Bomb', 'Metamorphosis'] } } },
+  evoker: { name: 'Evoker', color: '#33937F', title: 'Dragon of the Dracthyr', baseStats: { hp: 105, mana: 110, atk: 22, def: 9, crit: 11, speed: 11 }, specs: { devastation: { name: 'Devastation', role: 'dps', desc: 'Red dragonflight.', abilities: ['Living Flame', 'Pyre', "Dragon's Breath", 'Essence Burst'] }, preservation: { name: 'Preservation', role: 'healer', desc: 'Green dragonflight.', abilities: ['Living Flame', 'Emerald Blossom', 'Echo', 'Dream Flight'] }, augmentation: { name: 'Augmentation', role: 'dps', desc: 'Black dragonflight.', abilities: ['Living Flame', 'Eruption', 'Upheaval', 'Breath of Eons'] } } }
+};
+
+const ZONES = [
+  { id: 1, name: 'Elwynn Forest', minLevel: 1, maxLevel: 10, color: '#1a331a', enemies: [0,1,2] }, 
+  { id: 2, name: 'Westfall', minLevel: 8, maxLevel: 20, color: '#332c10', enemies: [3,1,4] }, 
+  { id: 3, name: 'Duskwood', minLevel: 18, maxLevel: 30, color: '#100c22', enemies: [4,5,6] },
+  { id: 4, name: 'Stranglethorn', minLevel: 28, maxLevel: 40, color: '#1a6a4a', enemies: [7,5,6] }, 
+  { id: 5, name: 'Burning Steppes', minLevel: 38, maxLevel: 50, color: '#9a3a1a', enemies: [8,6,9] }, 
+  { id: 6, name: 'Plaguelands', minLevel: 48, maxLevel: 60, color: '#6a8a5a', enemies: [9,6,8] }
+];
+
+const ENEMY_TEMPLATES = [
+  { name: 'Forest Wolf', icon: '🐺', baseHp: 30, baseAtk: 8, baseDef: 3, color: '#8b7355' }, 
+  { name: 'Gnoll Scout', icon: '🦡', baseHp: 35, baseAtk: 10, baseDef: 4, color: '#a08060' }, 
+  { name: 'Murloc Tidecaller', icon: '🐸', baseHp: 32, baseAtk: 9, baseDef: 5, color: '#5a8a6a' }, 
+  { name: 'Harvest Golem', icon: '🤖', baseHp: 45, baseAtk: 13, baseDef: 8, color: '#9a9a5a' }, 
+  { name: 'Giant Spider', icon: '🕷️', baseHp: 50, baseAtk: 15, baseDef: 6, color: '#4a2a3a' }, 
+  { name: 'Worgen', icon: '🐺', baseHp: 55, baseAtk: 18, baseDef: 7, color: '#2a2a2a' }, 
+  { name: 'Troll Berserker', icon: '👹', baseHp: 70, baseAtk: 22, baseDef: 10, color: '#3a6a3a' },
+  { name: 'Jungle Raptor', icon: '🦖', baseHp: 60, baseAtk: 24, baseDef: 8, color: '#6a3a3a' }, 
+  { name: 'Fire Elemental', icon: '🔥', baseHp: 80, baseAtk: 28, baseDef: 12, color: '#9a3a1a' }, 
+  { name: 'Plagued Ghoul', icon: '🧟', baseHp: 95, baseAtk: 32, baseDef: 15, color: '#5a6a4a' }
+];
+
+const ITEM_SLOTS = ['head', 'shoulders', 'chest', 'hands', 'legs', 'feet', 'weapon', 'offhand'];
+
+let state = { user: null, player: null, currentScreen: 'auth', worldMap: null, combat: null, mode: null, dungeonRun: null, classFilter: 'all', onlinePlayers: [], animationFrame: null, tempShopItems: [], tempPvPItems: [], prevScreen: 'town' };
+let pingInterval = null;
+
+// --- UTILS & API ---
+function rng(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+function showToast(msg) { const t = document.createElement('div'); t.className='toast'; t.textContent=msg; document.getElementById('toast-container').appendChild(t); setTimeout(()=>t.remove(),3000); }
+function showScreen(name) { document.querySelectorAll('.screen').forEach(s => s.classList.remove('active')); document.getElementById('screen-'+name).classList.add('active'); state.currentScreen = name; window.scrollTo(0,0); }
+
+async function apiRequest(payload) {
+  try {
+    const res = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) });
+    if (!res.ok) return { success: false, message: 'HTTP Error ' + res.status };
+    return await res.json();
+  } catch (err) { return { success: false, message: 'Network/CORS Error.' }; }
+}
+
+async function handleRegister() {
+  const u = document.getElementById('reg-username').value.trim(); const p = document.getElementById('reg-password').value;
+  if(!u || !p) return;
+  const res = await apiRequest({ action: 'register', username: u, password: p });
+  if (res.success) { state.user = { username: u, password: p }; startPing(); showScreen('character'); renderClassGrid(); }
+  else document.getElementById('reg-error').textContent = res.message;
+}
+
+async function handleLogin() {
+  const u = document.getElementById('login-username').value.trim(); const p = document.getElementById('login-password').value;
+  if(!u || !p) return;
+  const res = await apiRequest({ action: 'login', username: u, password: p });
+  if (res.success) {
+    state.user = { username: u, password: p }; startPing();
+    if (res.saveData) {
+      try { const save = JSON.parse(res.saveData); state.player = save.player; state.worldMap = save.worldMap; enterTown(); }
+      catch(e) { showScreen('character'); renderClassGrid(); }
+    } else { showScreen('character'); renderClassGrid(); }
+  } else document.getElementById('login-error').textContent = res.message;
+}
+function handleLogout() { clearInterval(pingInterval); state.user = null; state.player = null; state.worldMap = null; showScreen('auth'); }
+
+function openChangePassword() {
+  document.getElementById('modal-overlay').innerHTML = `<div class="modal-box" style="max-width:400px;"><div class="modal-title">Account</div><input type="password" class="auth-input" id="old-pass" placeholder="Old Password" style="margin-bottom:10px;"><input type="password" class="auth-input" id="new-pass" placeholder="New Password" style="margin-bottom:10px;"><div class="auth-error" id="pass-error" style="margin-bottom:10px;"></div><button class="auth-btn" onclick="handleChangePassword()">Change</button><div style="text-align:center;margin-top:20px;"><button class="btn" onclick="document.getElementById('modal-overlay').classList.remove('active')">Cancel</button></div></div>`;
+  document.getElementById('modal-overlay').classList.add('active');
+}
+async function handleChangePassword() {
+  const oldP = document.getElementById('old-pass').value; const newP = document.getElementById('new-pass').value;
+  if(!oldP || !newP) return;
+  const res = await apiRequest({ action: 'changePassword', username: state.user.username, password: oldP, newPassword: newP });
+  if (res.success) { showToast('Password changed!'); state.user.password = newP; document.getElementById('modal-overlay').classList.remove('active'); }
+  else document.getElementById('pass-error').textContent = res.message;
+}
+
+async function saveGame(showToastMsg = false) {
+  if (!state.player || !state.user) return;
+  const now = Date.now();
+  if (state.player.lastArenaReset && (now - state.player.lastArenaReset > 86400000)) { state.player.arenaPoints = 0; state.player.lastArenaReset = now; }
+  const saveData = JSON.stringify({ player: state.player, worldMap: state.worldMap });
+  const res = await apiRequest({ action: 'save', username: state.user.username, password: state.user.password, saveData });
+  if (showToastMsg) showToast(res.success ? 'Game saved to cloud!' : 'Save failed.');
+}
+async function startPing() {
+  if (pingInterval) clearInterval(pingInterval);
+  const ping = async () => {
+    if (!state.user) return;
+    await apiRequest({ action: 'ping', username: state.user.username });
+    if (state.currentScreen === 'town') {
+      const res = await apiRequest({ action: 'getOnline', username: state.user.username });
+      if (res.success) { state.onlinePlayers = res.players || []; renderOnlineList(); }
+    }
+  };
+  ping(); pingInterval = setInterval(ping, 30000);
+}
+
+// --- CHARACTER CREATION ---
+function renderClassGrid() {
+  const grid = document.getElementById('class-grid'); grid.innerHTML = '';
+  Object.entries(CLASSES).forEach(([key, c]) => {
+    const roles = [...new Set(Object.values(c.specs).map(s => s.role))];
+    if (state.classFilter !== 'all' && !roles.includes(state.classFilter)) return;
+    const card = document.createElement('div'); card.className = 'class-card'; card.style.setProperty('--class-color', c.color);
+    card.innerHTML = `<div class="class-icon"><svg viewBox="0 0 24 24"><path d="${CLASS_ICONS[key]}"/></svg></div><div class="class-name">${c.name}</div><div class="class-title">${c.title}</div>${roles.map(r => `<span class="role-badge ${r}">${r}</span>`).join('')}`;
+    card.onclick = () => openSpecModal(key); grid.appendChild(card);
+  });
+}
+document.querySelectorAll('.role-tab').forEach(t => t.onclick = () => {
+  document.querySelectorAll('.role-tab').forEach(x => x.classList.remove('active'));
+  t.classList.add('active'); state.classFilter = t.dataset.filter; renderClassGrid();
+});
+
+function openSpecModal(classKey) {
+  const cls = CLASSES[classKey]; const overlay = document.getElementById('modal-overlay');
+  const specCards = Object.entries(cls.specs).map(([specKey, spec]) => `<div class="spec-card" onclick="promptCustomName('${classKey}', '${specKey}')"><div style="width:48px;height:48px;background:var(--bg-2);border-radius:8px;display:flex;align-items:center;justify-content:center;color:${spec.role==='tank'?'#4d7eff':spec.role==='healer'?'#1eff00':'#ff6060'};font-size:10px;font-weight:bold;">${spec.role.toUpperCase()}</div><div><div style="font-family:Cinzel;font-size:16px;color:#fff;font-weight:bold;">${spec.name}</div><div style="font-size:12px;color:var(--text-dim);">${spec.desc}</div></div></div>`).join('');
+  overlay.innerHTML = `<div class="modal-box"><div class="modal-title">${cls.name} Specs</div><div>${specCards}</div><div style="text-align:center;margin-top:20px;"><button class="btn" onclick="document.getElementById('modal-overlay').classList.remove('active')">Back</button></div></div>`;
+  overlay.classList.add('active');
+}
+function promptCustomName(classKey, specKey) {
+  document.getElementById('modal-overlay').innerHTML = `<div class="modal-box" style="max-width:400px;"><div class="modal-title">Character Info</div><input type="text" id="char-name" class="auth-input" placeholder="Character Name" style="margin-bottom:10px;"><input type="text" id="char-avatar" class="auth-input" placeholder="Avatar Image URL (Optional)" style="margin-bottom:20px;"><button class="auth-btn" onclick="createCharacter('${classKey}', '${specKey}')">Enter World</button></div>`;
+}
+function createCharacter(classKey, specKey) {
+  const name = document.getElementById('char-name').value.trim() || state.user.username;
+  const avatarUrl = document.getElementById('char-avatar').value.trim();
+  const cls = CLASSES[classKey]; const spec = cls.specs[specKey]; const mods = ROLE_MODS[spec.role];
+  
+  const baseStats = { 
+      hp: Math.floor(cls.baseStats.hp * mods.hpMult), 
+      mana: Math.floor(cls.baseStats.mana * mods.manaMult), 
+      atk: Math.floor(cls.baseStats.atk * mods.atkMult), 
+      def: Math.floor(cls.baseStats.def * mods.defMult), 
+      crit: cls.baseStats.crit, speed: cls.baseStats.speed 
+  };
+  
+  const template = ROLE_ABILITY_TEMPLATES[spec.role];
+  const abilities = template.map((t, i) => ({ ...t, name: spec.abilities[i], currentCd: 0 }));
+  
+  state.player = { 
+      class: classKey, spec: specKey, role: spec.role, name, avatarUrl, level: 1, xp: 0, xpNext: 100, 
+      hp: baseStats.hp, maxHp: baseStats.hp, mana: baseStats.mana, maxMana: baseStats.mana, 
+      atk: baseStats.atk, def: baseStats.def, crit: baseStats.crit, speed: baseStats.speed, 
+      gold: 50, honor: 0, arenaPoints: 0, lastArenaReset: Date.now(), 
+      inventory: [], equipped: {}, abilities: abilities, buffs: [], hpPotions: 0, manaPotions: 0 
+  };
+  
+  document.getElementById('modal-overlay').classList.remove('active');
+  saveGame(true); enterTown();
+}
+
+// --- TOWN & FEATURES ---
+function enterTown() { showScreen('town'); renderPlayerPanel(); renderActionArea(); renderOnlineList(); }
+
+function renderPlayerPanel() {
+  const p = state.player; const panel = document.getElementById('player-panel');
+  const avatarHtml = p.avatarUrl ? `<img src="${p.avatarUrl}" alt="Avatar">` : `<svg viewBox="0 0 24 24"><path d="${CLASS_ICONS[p.class]}"/></svg>`;
+  panel.innerHTML = `
+    <div class="player-avatar">${avatarHtml}</div>
+    <div class="player-name">${p.name}</div>
+    <div class="player-level">Level ${p.level} ${p.role.toUpperCase()}</div>
+    <div class="resource-bar bar-hp"><div class="bar-track"><div class="bar-fill" style="width:${(p.hp/p.maxHp)*100}%"></div><div class="bar-text">${p.hp}/${p.maxHp} HP</div></div></div>
+    <div class="resource-bar bar-mana"><div class="bar-track"><div class="bar-fill" style="width:${(p.mana/p.maxMana)*100}%"></div><div class="bar-text">${p.mana}/${p.maxMana} MP</div></div></div>
+    <div class="resource-bar bar-xp"><div class="bar-track"><div class="bar-fill" style="width:${(p.xp/p.xpNext)*100}%"></div><div class="bar-text">${p.xp}/${p.xpNext} XP</div></div></div>
+    <div class="stats-grid">
+      <div class="stat-box"><span class="stat-label">ATK</span><span class="stat-value">${p.atk + getEquipBonus('atk')}</span></div>
+      <div class="stat-box"><span class="stat-label">DEF</span><span class="stat-value">${p.def + getEquipBonus('def')}</span></div>
+      <div class="stat-box"><span class="stat-label">Gold</span><span class="stat-value">${p.gold}</span></div>
+      <div class="stat-box"><span class="stat-label">Honor</span><span class="stat-value" style="color:var(--honor)">${p.honor}</span></div>
+      <div class="stat-box" style="grid-column: 1 / -1;"><span class="stat-label">Arena Points</span><span class="stat-value" style="color:var(--arena)">${p.arenaPoints}</span></div>
+    </div>`;
+}
+
+function renderActionArea() {
+  const p = state.player;
+  document.getElementById('action-area').innerHTML = `
+    <div class="action-card" onclick="openZoneModal()">
+      <div class="action-title">Adventure</div><div class="action-desc">Pilih zona, buka tile, jelajahi peta dunia dan dapatkan loot.</div>
+    </div>
+    <div class="action-card ${p.level<5?'disabled':''}" onclick="${p.level<5?'':'enterDungeonMenu()'}">
+      <div class="action-title" style="color:var(--rare)">Dungeon</div><div class="action-desc">Solo atau Team. Boss drop item Epic.</div><div class="action-meta">${p.level<5?'Need Lv 5':'Lv 5+'}</div>
+    </div>
+    <div class="action-card ${p.level<15?'disabled':''}" onclick="${p.level<15?'':'enterRaid()'}">
+      <div class="action-title" style="color:var(--epic)">Raid</div><div class="action-desc">Boss 3 Phase. Dijamin drop Legendary.</div><div class="action-meta">${p.level<15?'Need Lv 15':'Lv 15+'}</div>
+    </div>
+    <div class="action-card ${p.level<10?'disabled':''}" onclick="${p.level<10?'':'enterPvP()'}">
+      <div class="action-title" style="color:var(--health)">PvP Arena</div><div class="action-desc">Duel, dapatkan Honor & Arena Points.</div><div class="action-meta">${p.level<10?'Need Lv 10':'Lv 10+'}</div>
+    </div>`;
+}
+
+function renderOnlineList() {
+  const c = document.getElementById('online-list-container');
+  if (state.onlinePlayers.length === 0) { c.innerHTML = `<div class="stat-header" style="text-align:left; padding-left:10px;">Online Players</div><p style="color:var(--text-dim);font-size:12px;padding:10px;">Tidak ada pemain lain online.</p>`; return; }
+  c.innerHTML = `<div class="stat-header" style="text-align:left; padding-left:10px;">Online Players (${state.onlinePlayers.length})</div>` + state.onlinePlayers.map(u => `<div class="online-player"><span><span class="online-dot"></span>${u}</span><button class="btn" style="padding:4px 10px;font-size:10px;" onclick="inviteToDungeon('${u}')">Invite Dungeon</button></div>`).join('');
+}
+function inviteToDungeon(username) { showToast(`Mengundang ${username}...`); enterDungeonInstance(state.player.level, { name: username, isAi: true }); }
+
+// --- SHOP / VENDOR (BUY & SELL FIX) ---
+function openShop() {
+  if(!state.tempShopItems || state.tempShopItems.length === 0) {
+      state.tempShopItems = [];
+      for (let i = 0; i < 6; i++) state.tempShopItems.push(generateItem(state.player.level, pick(['common', 'uncommon', 'rare', 'epic'])));
+      state.tempShopItems.push({ id: 'pot_hp', name: 'HP Potion', rarity: 'common', isPotion: true, type: 'hp', price: 50, icon: '❤️' });
+      state.tempShopItems.push({ id: 'pot_mp', name: 'Mana Potion', rarity: 'common', isPotion: true, type: 'mana', price: 50, icon: '🔵' });
+  }
+  renderShopModal('buy');
+}
+
+function renderShopModal(activeTab = 'buy') {
+  const p = state.player;
+  
+  // Buy Grid
+  const buyHtml = state.tempShopItems.map((it, i) => {
+    if (it.isPotion) return `<div class="item-card" style="--rarity-color:var(--common)" onclick="buyItem(${i}, ${it.price})"><div class="item-icon">${it.icon}</div><div class="item-name">${it.name}</div><div class="item-slot">Consumable</div><div class="item-price">${it.price} Gold</div></div>`;
+    const price = Math.floor((it.rarity === 'common' ? 50 : it.rarity === 'uncommon' ? 150 : it.rarity === 'rare' ? 400 : 1000) * (1 + it.level * 0.1));
+    return `<div class="item-card" style="--rarity-color:var(--${it.rarity})" onclick="buyItem(${i}, ${price})"><div class="item-icon">${it.icon}</div><div class="item-name">${it.name}</div><div class="item-slot">${it.rarity} Lv ${it.level}</div><div class="item-price">${price} Gold</div></div>`;
+  }).join('');
+
+  // Sell Grid
+  const sellHtml = p.inventory.length > 0 ? p.inventory.map(it => {
+    const basePrice = (it.rarity === 'common' ? 50 : it.rarity === 'uncommon' ? 150 : it.rarity === 'rare' ? 400 : it.rarity === 'epic' ? 1000 : 2500);
+    const sellPrice = Math.floor((basePrice * (1 + it.level * 0.1)) * 0.4); // 40% of original value
+    return `<div class="item-card" style="--rarity-color:var(--${it.rarity})" onclick="sellItem('${it.id}', ${sellPrice})"><div class="item-icon">${it.icon}</div><div class="item-name">${it.name}</div><div class="item-slot">${it.rarity} Lv ${it.level}</div><div class="item-price" style="color:#aaa;">Sell: <span style="color:var(--gold-bright)">${sellPrice} G</span></div></div>`;
+  }).join('') : `<div style="grid-column:1/-1; text-align:center; color:#888; padding:20px;">Backpack kosong. Tidak ada yang bisa dijual.</div>`;
+
+  const modalHtml = `
+    <div class="modal-box" style="max-width:800px;">
+      <div class="modal-title">Vendor <span style="font-size:14px; color:var(--gold-bright); float:right; margin-top:8px;">${p.gold} Gold</span></div>
+      <div class="auth-tabs" style="margin-bottom:15px;">
+        <div class="auth-tab ${activeTab === 'buy' ? 'active' : ''}" onclick="renderShopModal('buy')">Buy</div>
+        <div class="auth-tab ${activeTab === 'sell' ? 'active' : ''}" onclick="renderShopModal('sell')">Sell</div>
+      </div>
+      <div id="shop-buy" style="display:${activeTab === 'buy' ? 'block' : 'none'};">
+        <div class="shop-grid">${buyHtml}</div>
+      </div>
+      <div id="shop-sell" style="display:${activeTab === 'sell' ? 'block' : 'none'};">
+         <div class="shop-grid">${sellHtml}</div>
+      </div>
+      <div style="text-align:center;margin-top:20px;">
+        <button class="btn" onclick="document.getElementById('modal-overlay').classList.remove('active')">Close</button>
+      </div>
+    </div>
+  `;
+  document.getElementById('modal-overlay').innerHTML = modalHtml;
+  document.getElementById('modal-overlay').classList.add('active');
+}
+
+function buyItem(idx, price) {
+  if (state.player.gold < price) return showToast('Gold tidak cukup!');
+  state.player.gold -= price; const it = state.tempShopItems[idx];
+  if (it.isPotion) {
+    if (it.type === 'hp') state.player.hpPotions = (state.player.hpPotions || 0) + 1;
+    else state.player.manaPotions = (state.player.manaPotions || 0) + 1;
+  } else { state.player.inventory.push(it); }
+  showToast('Item dibeli!'); 
+  saveGame(); 
+  renderPlayerPanel();
+  renderShopModal('buy'); // Refresh UI
+}
+
+function sellItem(itemId, price) {
+  const p = state.player;
+  const index = p.inventory.findIndex(i => i.id === itemId);
+  if(index > -1) {
+    const item = p.inventory[index];
+    p.inventory.splice(index, 1);
+    p.gold += price;
+    showToast('Terjual: ' + item.name + ' (' + price + ' G)');
+    saveGame();
+    renderPlayerPanel();
+    renderShopModal('sell'); // Refresh UI
+  }
+}
+
+function openPvPShop() {
+  const tiers = [{ name: 'Gladiator Gear', cost: 500, statMult: 1.5 }, { name: 'Vengeful Gear', cost: 1500, statMult: 2.0 }, { name: 'Wrathful Gear', cost: 5000, statMult: 3.0 }];
+  state.tempPvPItems = tiers.map(t => generateItem(state.player.level, 'epic', t.name, t.statMult));
+  const itemsHtml = state.tempPvPItems.map((it, i) => `<div class="item-card" style="--rarity-color:var(--epic)" onclick="buyPvPItem(${i}, ${tiers[i].cost})"><div class="item-icon">${it.icon}</div><div class="item-name">${it.name}</div><div class="item-slot">${it.slot}</div><div class="item-price" style="color:var(--honor)">${tiers[i].cost} Honor</div></div>`).join('');
+  document.getElementById('modal-overlay').innerHTML = `<div class="modal-box" style="max-width:800px;"><div class="modal-title">PvP Shop (Honor: ${state.player.honor})</div><div class="shop-grid">${itemsHtml}</div><div style="text-align:center;margin-top:20px;"><button class="btn" onclick="document.getElementById('modal-overlay').classList.remove('active')">Close</button></div></div>`;
+  document.getElementById('modal-overlay').classList.add('active');
+}
+function buyPvPItem(idx, cost) {
+  if (state.player.honor < cost) return showToast('Honor tidak cukup!');
+  state.player.honor -= cost; state.player.inventory.push(state.tempPvPItems[idx]);
+  showToast('Gladiator Item dibeli!'); saveGame(); renderPlayerPanel();
+}
+
+// --- DUNGEON & RAID & PVP ---
+function openZoneModal() {
+  const overlay = document.getElementById('modal-overlay');
+  const zones = ZONES.map(z => `<div class="action-card ${state.player.level<z.minLevel?'disabled':''}" style="margin-bottom:10px; border-color:${z.color}; min-height:80px;" onclick="${state.player.level<z.minLevel?'':`enterZone(${z.id})`}"><div class="action-title" style="color:${z.color}">${z.name}</div><div class="action-desc">Level ${z.minLevel}-${z.maxLevel}</div></div>`).join('');
+  overlay.innerHTML = `<div class="modal-box" style="max-width:500px;"><div class="modal-title">World Zones</div>${zones}<div style="text-align:center;margin-top:20px;"><button class="btn" onclick="document.getElementById('modal-overlay').classList.remove('active')">Close</button></div></div>`;
+  overlay.classList.add('active');
+}
+
+function enterDungeonMenu() {
+  document.getElementById('modal-overlay').innerHTML = `<div class="modal-box" style="max-width:400px;"><div class="modal-title">Dungeon Mode</div><button class="auth-btn" style="background:#4d7eff; border-color:#4d7eff;" onclick="enterDungeonInstance(${state.player.level}, null)">Solo Dungeon</button><div style="margin:15px 0;text-align:center;color:var(--text-dim);font-size:11px;letter-spacing:0.1em;">ATAU INVITE DARI LIST ONLINE</div><button class="btn" style="width:100%" onclick="document.getElementById('modal-overlay').classList.remove('active')">Cancel</button></div>`;
+  document.getElementById('modal-overlay').classList.add('active');
+}
+function enterDungeonInstance(lvl, ally) {
+  state.mode = 'dungeon'; state.dungeonRun = { current: 1, total: 3, ally };
+  document.getElementById('modal-overlay').classList.remove('active');
+  startCombat([spawnEnemy(rng(0, ENEMY_TEMPLATES.length-1), lvl, true)], 'dungeon');
+}
+
+function enterRaidInstance(lvl) {
+  state.mode = 'raid';
+  const boss = { name: 'Raid Boss', icon: '🐉', isEmoji: true, hp: 500 * lvl, atk: 20 * lvl, def: 10 * lvl, xp: 200 * lvl, gold: rng(500, 5000), level: lvl, isElite: true, phases: 3 };
+  startCombat([boss], 'raid');
+}
+function enterRaid() { enterRaidInstance(state.player.level); }
+
+function enterPvPInstance() {
+  state.mode = 'pvp';
+  const opp = spawnEnemy(rng(0, ENEMY_TEMPLATES.length-1), state.player.level, true); 
+  opp.name = 'Gladiator'; opp.icon = '🛡️'; opp.isElite = true;
+  startCombat([opp], 'pvp');
+}
+function enterPvP() { enterPvPInstance(); }
+
+// --- MAP & ADVENTURE ---
+function enterZone(zoneId) {
+  const zone = ZONES.find(z => z.id === zoneId);
+  if (!state.worldMap || state.worldMap.zone.id !== zoneId) state.worldMap = generateWorldMap(zone);
+  state.mode = 'world'; document.getElementById('modal-overlay').classList.remove('active');
+  document.getElementById('map-title').textContent = zone.name;
+  showScreen('map'); renderMap();
+}
+
+function generateWorldMap(zone) {
+  const cols = 10, rows = 8; const tiles = []; const townX = 5, townY = 4;
+  for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
+    let type; const dist = Math.abs(x - townX) + Math.abs(y - townY);
+    if (x === townX && y === townY) type = 'town';
+    else if (dist <= 1) type = 'plains';
+    else if (dist <= 2) type = Math.random() < 0.7 ? 'forest' : 'plains';
+    else if (dist <= 4) type = Math.random() < 0.5 ? 'forest' : 'mountain';
+    else type = Math.random() < 0.6 ? 'mountain' : 'forest';
+    
+    if ((x === 0 || x === cols-1 || y === 0 || y === rows-1) && Math.random() < 0.15 && type !== 'town') {
+      const r = Math.random(); if (r < 0.4) type = 'dungeon'; else if (r < 0.7) type = 'raid'; else type = 'pvp';
+    }
+    
+    const tile = { x, y, type, revealed: dist <= 2, cleared: false };
+    if (type === 'forest' || type === 'mountain') {
+      const enemyIdx = pick(zone.enemies); const isElite = type === 'mountain';
+      const mobLevel = isElite ? zone.minLevel + 2 : zone.minLevel;
+      tile.enemy = spawnEnemy(enemyIdx, mobLevel, isElite);
+    }
+    tiles.push(tile);
+  }
+  return { tiles, cols, rows, playerX: townX, playerY: townY, zone };
+}
+
+function spawnEnemy(templateIdx, level, isElite = false) {
+  const t = ENEMY_TEMPLATES[templateIdx]; const scale = 1 + (level - 1) * 0.5; const eliteMult = isElite ? 1.8 : 1.0;
+  return { name: (isElite ? 'Elite ' : '') + t.name, icon: t.icon, hp: Math.floor(t.baseHp * scale * eliteMult), atk: Math.floor(t.baseAtk * scale * eliteMult), def: Math.floor(t.baseDef * scale * (isElite ? 1.3 : 1.0)), xp: Math.floor((10 + level * 4) * (isElite ? 2.5 : 1.5)), gold: rng(25, 100), color: t.color, isElite, level };
+}
+
+function renderMap() {
+  const canvas = document.getElementById('map-canvas'); if(!canvas) return; const ctx = canvas.getContext('2d');
+  const map = state.worldMap; const tileW = canvas.width / map.cols; const tileH = canvas.height / map.rows;
+  
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  
+  map.tiles.forEach(t => {
+    const px = t.x * tileW, py = t.y * tileH;
+    
+    if (!t.revealed) {
+      ctx.fillStyle = '#05050a'; ctx.fillRect(px, py, tileW, tileH);
+      ctx.strokeStyle = '#111'; ctx.strokeRect(px, py, tileW, tileH);
+      return;
+    }
+
+    if (t.type === 'town') ctx.fillStyle = '#1c2438';
+    else if (t.type === 'plains' || t.cleared) ctx.fillStyle = '#111811';
+    else if (t.type === 'forest') ctx.fillStyle = '#102210';
+    else if (t.type === 'mountain') ctx.fillStyle = '#301818';
+    else if (t.type === 'dungeon' || t.type === 'raid' || t.type === 'pvp') ctx.fillStyle = '#221010';
+    
+    ctx.fillRect(px, py, tileW, tileH);
+    ctx.strokeStyle = '#333'; ctx.lineWidth = 1; ctx.strokeRect(px, py, tileW, tileH);
+
+    ctx.font = '24px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    let icon = '';
+    if (t.type === 'town') icon = '🏰';
+    else if (t.type === 'dungeon') icon = '🚪';
+    else if (t.type === 'raid') icon = '🐉';
+    else if (t.type === 'pvp') icon = '⚔️';
+    else if (t.enemy && !t.cleared) {
+      icon = t.enemy.icon;
+      if (t.enemy.isElite) { ctx.strokeStyle = '#ff3333'; ctx.lineWidth = 2; ctx.strokeRect(px+4, py+4, tileW-8, tileH-8); }
+    }
+    if(icon) {
+        ctx.shadowColor = "black";
+        ctx.shadowBlur = 4;
+        ctx.fillText(icon, px + tileW/2, py + tileH/2);
+        ctx.shadowBlur = 0; // reset
+    }
+
+    if (t.x === map.playerX && t.y === map.playerY) {
+      ctx.fillStyle = 'rgba(255, 217, 102, 0.4)'; ctx.fillRect(px, py, tileW, tileH);
+      ctx.fillStyle = '#ffb830'; ctx.beginPath(); ctx.arc(px + tileW/2, py + tileH/2, 6, 0, Math.PI * 2); ctx.fill();
+    }
+    
+    const dist = Math.abs(t.x - map.playerX) + Math.abs(t.y - map.playerY);
+    if (dist === 1) { ctx.strokeStyle = 'rgba(255, 200, 0, 0.7)'; ctx.lineWidth = 2; ctx.strokeRect(px+1, py+1, tileW-2, tileH-2); }
+  });
+}
+
+document.addEventListener('click', e => {
+  if (state.currentScreen !== 'map' || e.target.id !== 'map-canvas') return;
+  const rect = e.target.getBoundingClientRect();
+  const tx = Math.floor(((e.clientX - rect.left) / rect.width) * state.worldMap.cols);
+  const ty = Math.floor(((e.clientY - rect.top) / rect.height) * state.worldMap.rows);
+  handleTileClick(tx, ty);
+});
+
+function handleTileClick(tx, ty) {
+  const map = state.worldMap; const tile = map.tiles.find(t => t.x === tx && t.y === ty);
+  if (!tile || !tile.revealed) return;
+  const dist = Math.abs(tx - map.playerX) + Math.abs(ty - map.playerY);
+  
+  let infoHtml = `<div style="color:var(--gold);font-weight:bold;font-size:16px;text-transform:uppercase;">${tile.type}</div>`;
+  if (tile.enemy && !tile.cleared) infoHtml += `<div style="margin:10px 0;"><span style="color:${tile.enemy.isElite?'#ff5050':'#fff'}">${tile.enemy.icon} ${tile.enemy.name}</span><br>Lv ${tile.enemy.level} | HP: ${tile.enemy.hp}</div>`;
+  else if (tile.type === 'town') infoHtml += `<div style="margin:10px 0; color:#aaa;">Safe zone. Heal here.</div>`;
+  
+  if (dist === 1) infoHtml += `<button class="btn btn-primary" style="width:100%;margin-top:10px;" onclick="moveToTile(${tx}, ${ty})">Move Here</button>`;
+  else if (dist === 0 && tile.type === 'town') infoHtml += `<button class="btn" style="width:100%;margin-top:10px;" onclick="restAtTown()">Rest</button>`;
+  
+  document.getElementById('tile-info').innerHTML = infoHtml;
+}
+
+function moveToTile(tx, ty) {
+  const map = state.worldMap; const dist = Math.abs(tx - map.playerX) + Math.abs(ty - map.playerY);
+  if (dist !== 1) return; const tile = map.tiles.find(t => t.x === tx && t.y === ty);
+  map.tiles.forEach(t => { if (Math.abs(t.x - tx) <= 1 && Math.abs(t.y - ty) <= 1) t.revealed = true; });
+  map.playerX = tx; map.playerY = ty; renderMap();
+  
+  if (!tile.cleared) {
+    if (tile.enemy) { startCombat([tile.enemy], 'world', tile); }
+    else if (tile.type === 'dungeon') { enterDungeonInstance(map.zone.maxLevel); }
+    else if (tile.type === 'raid') { enterRaidInstance(map.zone.maxLevel); }
+    else if (tile.type === 'pvp') { enterPvPInstance(); }
+    else if (tile.type === 'town') { restAtTown(); }
+  }
+  document.getElementById('tile-info').innerHTML = "Click a tile to inspect.";
+}
+
+function restAtTown() { state.player.hp = state.player.maxHp; state.player.mana = state.player.maxMana; showToast('HP & Mana Restored.'); saveGame(); }
+function returnToTown() { enterTown(); }
+function showMapInventory() { state.prevScreen = 'map'; showScreen('inventory'); renderInventory(); }
+function goBackFromInv() { showScreen(state.prevScreen || 'town'); }
+
+// --- INVENTORY & EQUIPPING ---
+function updateMaxHp() {
+  const cls = CLASSES[state.player.class];
+  const mods = ROLE_MODS[state.player.role];
+  state.player.maxHp = Math.floor(cls.baseStats.hp * mods.hpMult) + getEquipBonus('hp') + ((state.player.level - 1) * 20);
+  if(state.player.hp > state.player.maxHp) state.player.hp = state.player.maxHp;
+}
+
+function getTotalItemLevel() {
+  let total = state.player.level * 5;
+  Object.values(state.player.equipped).forEach(item => { if (item) total += item.level * 10; });
+  return total;
+}
+function getEquipBonus(stat) {
+  let total = 0;
+  Object.values(state.player.equipped).forEach(item => { if (item && item.stats && item.stats[stat]) total += item.stats[stat]; });
+  return total;
+}
+
+function renderInventory() {
+  const p = state.player;
+  const slotsLeft = ['head', 'shoulders', 'chest', 'hands'];
+  const slotsRight = ['legs', 'feet', 'weapon', 'offhand'];
+  
+  let htmlLeft = slotsLeft.map(slot => {
+    const item = p.equipped[slot];
+    const icon = item ? item.icon : (SLOT_ICONS[slot] || '❔');
+    const borderCls = item ? `r-${item.rarity}` : '';
+    const tooltip = item ? `<div class="wow-tooltip"><div class="tt-name" style="color:var(--${item.rarity})">${item.name}</div><div class="tt-type">Slot: ${slot} | Lv ${item.level}</div><div class="tt-stat">${Object.entries(item.stats).map(([k,v])=>`+${v} ${k.toUpperCase()}`).join('<br>')}</div></div>` : `<div class="wow-tooltip">${slot.toUpperCase()}</div>`;
+    return `<div class="wow-equip-slot ${item?'filled':''} ${borderCls}" onclick="${item ? `unequipItem('${slot}')` : ''}">${icon}${tooltip}</div>`;
+  }).join('');
+  
+  let htmlRight = slotsRight.map(slot => {
+    const item = p.equipped[slot];
+    const icon = item ? item.icon : (SLOT_ICONS[slot] || '❔');
+    const borderCls = item ? `r-${item.rarity}` : '';
+    const tooltip = item ? `<div class="wow-tooltip"><div class="tt-name" style="color:var(--${item.rarity})">${item.name}</div><div class="tt-type">Slot: ${slot} | Lv ${item.level}</div><div class="tt-stat">${Object.entries(item.stats).map(([k,v])=>`+${v} ${k.toUpperCase()}`).join('<br>')}</div></div>` : `<div class="wow-tooltip">${slot.toUpperCase()}</div>`;
+    return `<div class="wow-equip-slot ${item?'filled':''} ${borderCls}" onclick="${item ? `unequipItem('${slot}')` : ''}">${icon}${tooltip}</div>`;
+  }).join('');
+  
+  document.getElementById('equip-left-col').innerHTML = htmlLeft;
+  document.getElementById('equip-right-col').innerHTML = htmlRight;
+  
+  const avatarHtml = p.avatarUrl ? `<img src="${p.avatarUrl}" alt="Avatar" style="width:100%;height:100%;object-fit:cover;border-radius:4px;">` : `<svg viewBox="0 0 24 24"><path d="${CLASS_ICONS[p.class]}"/></svg>`;
+  document.getElementById('char-center-col').innerHTML = avatarHtml;
+  
+  const totalAtk = p.atk + getEquipBonus('atk');
+  const totalDef = p.def + getEquipBonus('def');
+  
+  document.getElementById('stats-panel-col').innerHTML = `
+    <div style="text-align:center; font-family:Cinzel; font-size:16px; color:var(--gold); margin-bottom:5px;">${p.name}</div>
+    <div style="text-align:center; font-size:10px; color:var(--text-dim); margin-bottom:15px; text-transform:uppercase;">Level ${p.level} ${p.spec} ${p.class}</div>
+    
+    <div class="stat-header">Item Level</div>
+    <div class="stat-ilvl">${getTotalItemLevel()}</div>
+    
+    <div class="stat-header">Attributes</div>
+    <div class="stat-row"><span>Strength/Int:</span><span class="val">${totalAtk}</span></div>
+    <div class="stat-row"><span>Stamina (HP):</span><span class="val">${p.maxHp}</span></div>
+    <div class="stat-row"><span>Armor:</span><span class="val">${totalDef}</span></div>
+    
+    <div class="stat-header">Enhancements</div>
+    <div class="stat-row"><span>Critical Strike:</span><span class="val">${p.crit}%</span></div>
+    <div class="stat-row"><span>Haste:</span><span class="val">${p.speed}%</span></div>
+  `;
+  
+  let bagHtml = '';
+  for(let i=0; i<20; i++) {
+      const item = p.inventory[i];
+      if (item) {
+          const tooltip = `<div class="wow-tooltip"><div class="tt-name" style="color:var(--${item.rarity})">${item.name}</div><div class="tt-type">Slot: ${item.slot}</div><div class="tt-stat">${Object.entries(item.stats).map(([k,v])=>`+${v} ${k}`).join('<br>')}</div><div style="color:#aaa; font-size:9px; margin-top:4px;">Click to equip</div></div>`;
+          bagHtml += `<div class="bag-slot r-${item.rarity}" style="border:1px solid var(--${item.rarity})" onclick="equipItem('${item.id}')">${item.icon}${tooltip}</div>`;
+      } else { bagHtml += `<div class="bag-slot"></div>`; }
+  }
+  document.getElementById('inventory-grid').innerHTML = bagHtml;
+}
+
+function equipItem(id) {
+  const it = state.player.inventory.find(i => i.id === id);
+  if (!it) return;
+  if (state.player.equipped[it.slot]) {
+      state.player.inventory.push(state.player.equipped[it.slot]);
+  }
+  state.player.equipped[it.slot] = it;
+  state.player.inventory = state.player.inventory.filter(i => i.id !== id);
+  updateMaxHp();
+  showToast(`Equipped: ${it.name}`); renderInventory(); saveGame();
+}
+
+function unequipItem(slot) {
+  if(!state.player.equipped[slot]) return;
+  state.player.inventory.push(state.player.equipped[slot]);
+  state.player.equipped[slot] = null;
+  updateMaxHp(); 
+  showToast('Unequipped'); renderInventory(); saveGame();
+}
+
+function generateItem(level, rarity, forcedName = null, statMult = 1) {
+  const slot = pick(ITEM_SLOTS); let icon = '❔'; const stats = {};
+  
+  // Icon Polish
+  if (slot === 'head') icon = pick(['🪖', '👑', '👲']);
+  else if (slot === 'shoulders') icon = pick(['🛡️', '🦅']);
+  else if (slot === 'chest') icon = pick(['🦺', '🥋', '🧥']);
+  else if (slot === 'hands') icon = pick(['🧤', '🦾']);
+  else if (slot === 'legs') icon = pick(['👖', '🩳']);
+  else if (slot === 'feet') icon = pick(['🥾', '👢']);
+  else if (slot === 'weapon') icon = pick(['⚔️', '🏹', '🪄', '🪓', '🔨', '🗡️']);
+  else if (slot === 'offhand') icon = pick(['📖', '🛡️', '🔮', '🧿']);
+  
+  if (rarity === 'legendary') statMult *= 2; else if (rarity === 'epic') statMult *= 1.5; else if (rarity === 'rare') statMult *= 1.2; else if (rarity === 'uncommon') statMult *= 1; else statMult *= 0.8;
+  
+  if (slot === 'weapon') stats.atk = Math.floor(rng(2, 5) * statMult * (1 + level * 0.2));
+  else if (slot === 'chest' || slot === 'shoulders') stats.def = Math.floor(rng(2, 5) * statMult * (1 + level * 0.2));
+  else stats.hp = Math.floor(rng(10, 30) * statMult * (1 + level * 0.2));
+  
+  return { id: 'it_' + Date.now() + Math.random(), name: forcedName || `${rarity.charAt(0).toUpperCase()+rarity.slice(1)} ${slot}`, slot, rarity, level, stats, icon };
+}
+
+// --- COMBAT SYSTEM ---
+function startCombat(enemies, mode, sourceTile = null) {
+  state.combat = { enemies: enemies.map(e => ({...e, maxHp: e.hp, alive: true})), turn: 'player', log: [], sourceTile, potionCd: 0, ally: state.dungeonRun ? state.dungeonRun.ally : null };
+  showScreen('combat'); renderCombat();
+}
+
+function renderCombat() {
+  const p = state.player; const e = state.combat.enemies[0];
+  const avatarHtml = p.avatarUrl ? `<img src="${p.avatarUrl}" alt="Avatar">` : `<svg viewBox="0 0 24 24" style="width:40px; fill:var(--gold)"><path d="${CLASS_ICONS[p.class]}"/></svg>`;
+  
+  document.getElementById('uf-player').innerHTML = `
+    <div class="unit-portrait">${avatarHtml}</div>
+    <div class="unit-info">
+      <div class="unit-name">${p.name}</div>
+      <div class="resource-bar bar-hp" style="margin-bottom:2px;"><div class="bar-track" style="height:14px;"><div class="bar-fill" style="width:${(p.hp/p.maxHp)*100}%"></div><div class="bar-text">${p.hp}/${p.maxHp}</div></div></div>
+      <div class="resource-bar bar-mana" style="margin-bottom:0;"><div class="bar-track" style="height:10px;"><div class="bar-fill" style="width:${(p.mana/p.maxMana)*100}%"></div></div></div>
+    </div>
+    <div class="unit-level">${p.level}</div>
+  `;
+
+  let eliteDecor = e.isElite ? `<div class="elite-dragon">🐲</div>` : '';
+  document.getElementById('uf-enemy').innerHTML = `
+    ${eliteDecor}
+    <div class="unit-portrait" style="border-color:#ff3333;"><div class="emoji">${e.icon}</div></div>
+    <div class="unit-info">
+      <div class="unit-name" style="color:#ff5050;">${e.name}</div>
+      <div class="resource-bar bar-hp" style="margin-bottom:2px;"><div class="bar-track" style="height:14px;"><div class="bar-fill" style="background:linear-gradient(180deg, #d33c3c, #9c1717); width:${(e.hp/e.maxHp)*100}%"></div><div class="bar-text">${e.hp}/${e.maxHp}</div></div></div>
+    </div>
+    <div class="unit-level">${e.level || state.player.level}</div>
+  `;
+
+  document.getElementById('ability-bar').innerHTML = `
+    ${p.abilities.map((a, i) => `<button class="ability-btn" ${a.currentCd > 0 || p.mana < a.cost ? 'disabled' : ''} onclick="useAbility(${i})"><div class="ability-name">${a.name}</div><div class="ability-cost">${a.cost > 0 ? `${a.cost} MP` : 'Free'}</div>${a.currentCd > 0 ? `<div class="ability-cd">${a.currentCd}</div>` : ''}</button>`).join('')}
+    <button class="potion-btn" onclick="usePotion('hp')" ${state.combat.potionCd > 0 || !p.hpPotions || p.hpPotions < 1 ? 'disabled' : ''}><div class="potion-icon">❤️</div>${p.hpPotions > 0 && state.combat.potionCd === 0 ? `<div class="potion-count">${p.hpPotions}</div>` : (state.combat.potionCd > 0 ? `<div style="font-size:10px">${state.combat.potionCd}</div>` : '')}</button>
+    <button class="potion-btn mana" onclick="usePotion('mana')" ${state.combat.potionCd > 0 || !p.manaPotions || p.manaPotions < 1 ? 'disabled' : ''}><div class="potion-icon">🔵</div>${p.manaPotions > 0 && state.combat.potionCd === 0 ? `<div class="potion-count">${p.manaPotions}</div>` : (state.combat.potionCd > 0 ? `<div style="font-size:10px">${state.combat.potionCd}</div>` : '')}</button>`;
+    
+  document.getElementById('combat-log').innerHTML = state.combat.log.slice(-10).map(l => `<div class="log-entry">${l}</div>`).join('');
+  const logDiv = document.getElementById('combat-log');
+  logDiv.scrollTop = logDiv.scrollHeight;
+}
+
+function useAbility(idx) {
+  if (state.combat.turn !== 'player') return;
+  const p = state.player; const ab = p.abilities[idx]; const e = state.combat.enemies[0];
+  if (ab.currentCd > 0 || p.mana < ab.cost) return;
+  p.mana -= ab.cost; if (ab.cd > 0) ab.currentCd = ab.cd;
+  
+  if (ab.heal) { p.hp = Math.min(p.maxHp, p.hp + Math.floor(p.maxHp * ab.heal)); state.combat.log.push(`<span style="color:var(--health)">Healed for ${Math.floor(p.maxHp * ab.heal)}</span>`); }
+  if (ab.buff) { state.combat.log.push(`<span style="color:var(--gold)">Buff Gained: ${ab.buff.type.toUpperCase()}</span>`); }
+  if (ab.dmg > 0) { 
+      let dmg = Math.floor((p.atk + getEquipBonus('atk')) * ab.dmg * (0.8 + Math.random() * 0.4)); 
+      e.hp -= dmg; 
+      state.combat.log.push(`<span style="color:var(--gold)">${ab.name}</span> hits ${e.name} for <span style="color:#ffcc00; font-weight:bold;">${dmg}</span>`); 
+  }
+  
+  if (e.hp <= 0) { e.hp = 0; return endCombat(true); }
+  state.combat.turn = 'enemy'; renderCombat(); setTimeout(enemyTurn, 1000);
+}
+
+function usePotion(type) {
+  if (state.combat.potionCd > 0) return; const p = state.player;
+  if (type === 'hp' && p.hpPotions > 0) { p.hp = Math.min(p.maxHp, p.hp + Math.floor(p.maxHp * 0.5)); p.hpPotions--; state.combat.log.push(`<span style="color:var(--health)">Used HP Potion (+${Math.floor(p.maxHp*0.5)} HP)</span>`); }
+  else if (type === 'mana' && p.manaPotions > 0) { p.mana = Math.min(p.maxMana, p.mana + Math.floor(p.maxMana * 0.5)); p.manaPotions--; state.combat.log.push(`<span style="color:var(--mana)">Used Mana Potion (+${Math.floor(p.maxMana*0.5)} MP)</span>`); }
+  state.combat.potionCd = 3; state.combat.turn = 'enemy'; renderCombat(); setTimeout(enemyTurn, 1000);
+}
+
+function enemyTurn() {
+  const e = state.combat.enemies[0]; const p = state.player;
+  let dmg = Math.floor(e.atk * (0.8 + Math.random() * 0.4));
+  p.hp -= dmg; 
+  state.combat.log.push(`<span style="color:#ff5050">${e.name}</span> hits you for <span style="color:#ff5050; font-weight:bold;">${dmg}</span>`);
+  
+  if (state.combat.potionCd > 0) state.combat.potionCd--;
+  if (p.hp <= 0) { p.hp = 0; return endCombat(false); }
+  
+  p.abilities.forEach(a => { if (a.currentCd > 0) a.currentCd--; });
+  state.combat.turn = 'player'; renderCombat();
+}
+
+function endCombat(victory) {
+  const p = state.player; const e = state.combat.enemies[0];
+  if (victory) {
+    p.xp += e.xp; p.gold += e.gold;
+    if (state.mode === 'pvp') { p.honor += 50; p.arenaPoints += 10; }
+    
+    let loot = null;
+    if (state.mode === 'raid' || (state.combat.sourceTile && state.combat.sourceTile.type === 'dungeon')) loot = generateItem(p.level, Math.random() < 0.5 ? 'epic' : 'legendary');
+    else if (Math.random() < 0.4) loot = generateItem(p.level, pick(['common', 'uncommon', 'rare']));
+    
+    let potDrop = [];
+    if (Math.random() < 0.20) { p.hpPotions = (p.hpPotions||0)+1; potDrop.push('1 HP Potion'); }
+    if (Math.random() < 0.20) { p.manaPotions = (p.manaPotions||0)+1; potDrop.push('1 Mana Potion'); }
+    if (loot) p.inventory.push(loot);
+    
+    if (state.combat.sourceTile) state.combat.sourceTile.cleared = true;
+    while (p.xp >= p.xpNext && p.level < MAX_LEVEL) { 
+        p.xp -= p.xpNext; p.level++; p.xpNext = Math.floor(p.xpNext * 1.5); 
+        p.atk += 2; 
+        updateMaxHp(); // Sinkronisasi increment HP dan Mana
+        p.maxMana += 10; 
+        p.hp = p.maxHp; p.mana = p.maxMana; 
+    }
+    showResult(true, e, loot, potDrop);
+  } else { showResult(false, e, null, []); }
+  saveGame();
+}
+
+function showResult(victory, enemy, loot, potDrop) {
+  document.getElementById('result-content').innerHTML = `
+    <h1 style="font-family:Cinzel;font-size:48px;color:${victory?'var(--gold)':'#ff5050'}">${victory?'VICTORY':'DEFEAT'}</h1>
+    ${victory ? `<p style="color:var(--text-dim);margin:10px 0;font-size:16px;">+${enemy.xp} XP, +${enemy.gold} Gold ${state.mode==='pvp'?', +50 Honor, +10 Arena Points':''}</p>
+    ${potDrop && potDrop.length > 0 ? `<p style="color:var(--uncommon);margin:5px 0;">Dropped: ${potDrop.join(', ')}</p>` : ''}
+    ${loot?`<div style="margin:20px auto;max-width:200px;background:#000;border:1px solid var(--${loot.rarity});padding:10px;border-radius:4px;"><div style="font-size:32px; filter:drop-shadow(0 2px 2px #000);">${loot.icon}</div><div style="font-family:Cinzel;color:var(--${loot.rarity});">${loot.name}</div><div style="font-size:10px;color:#aaa;">Sent to Backpack</div></div>`:''}` : '<p style="color:var(--text-dim)">You have died...</p>'}
+    <button class="btn btn-primary" style="margin-top:20px; padding:10px 30px;" onclick="afterCombat()">Continue</button>`;
+  showScreen('result');
+}
+
+function afterCombat() {
+  state.dungeonRun = null; state.combat = null;
+  if (state.mode === 'world' && state.worldMap) { showScreen('map'); renderMap(); }
+  else enterTown(); state.mode = null;
+}
+function tryFlee() { afterCombat(); }
+
+document.querySelectorAll('.auth-tab').forEach(t => t.onclick = () => {
+  document.querySelectorAll('.auth-tab').forEach(x => x.classList.remove('active'));
+  document.querySelectorAll('.auth-form').forEach(x => x.classList.remove('active'));
+  t.classList.add('active'); document.getElementById('form-' + t.dataset.form).classList.add('active');
+});
+</script>
+</body>
+</html>

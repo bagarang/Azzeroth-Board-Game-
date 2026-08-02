@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Azeroth Board — MMO Board Game</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Spectral:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-0: #050508; --bg-1: #0a0a12; --bg-2: #121220; --bg-3: #1a1a2e; --bg-4: #24243e;
+  --gold: #ffb830; --gold-bright: #ffd966; --gold-dim: #8b6914;
+  --epic: #a335ee; --rare: #0070dd; --uncommon: #1eff00; --common: #9d9d9d; --legendary: #ff8000;
+  --health: #e54040; --mana: #4d7eff; --xp: #a335ee;
+  --border: #2a2a4a; --border-bright: #444474;
+  --text: #e8e8f0; --text-dim: #9898b8; --text-mute: #6a6a8a;
+  
+  /* WoW Class Colors */
+  --c-warrior: #C69B6D; --c-paladin: #F58CBA; --c-hunter: #ABD473;
+  --c-rogue: #FFF569; --c-priest: #FFFFFF; --c-dk: #C41E3A;
+  --c-shaman: #0070DE; --c-mage: #3FC7EB; --c-warlock: #8788EE;
+  --c-monk: #00FF96; --c-druid: #FF7D0A; --c-dh: #A330C9; --c-evoker: #33937F;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  font-family: 'Spectral', serif; background: var(--bg-0); color: var(--text);
+  overflow-x: hidden; position: relative;
+}
+body::before {
+  content: ''; position: fixed; inset: 0; z-index: -2; pointer-events: none;
+  background:
+    radial-gradient(circle at 15% 20%, rgba(255,184,48,0.06), transparent 50%),
+    radial-gradient(circle at 85% 80%, rgba(163,53,238,0.05), transparent 50%),
+    linear-gradient(180deg, #050508 0%, #0a0a12 50%, #050508 100%);
+}
+body::after {
+  content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background-image: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.015) 2px, rgba(255,255,255,0.015) 4px);
+}
+h1, h2, h3, h4, .cinzel { font-family: 'Cinzel', serif; letter-spacing: 0.04em; }
+#game { max-width: 1500px; margin: 0 auto; padding: 20px; min-height: 100vh; position: relative; }
+
+.screen { display: none; animation: screenIn 0.5s cubic-bezier(0.16,1,0.3,1); }
+.screen.active { display: block; }
+@keyframes screenIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+
+.game-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 24px; background: linear-gradient(180deg, rgba(26,26,46,0.9), rgba(18,18,32,0.8));
+  border: 1px solid var(--border); border-radius: 12px; margin-bottom: 20px;
+  backdrop-filter: blur(10px); box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+.game-title {
+  font-size: 28px; font-weight: 900;
+  background: linear-gradient(180deg, var(--gold-bright), var(--gold));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  text-shadow: 0 0 20px rgba(255,184,48,0.2);
+}
+.game-subtitle { font-size: 11px; color: var(--text-dim); letter-spacing: 0.3em; text-transform: uppercase; margin-top: 4px; }
+
+.char-select-intro { text-align: center; padding: 30px 20px 20px; }
+.char-select-intro h1 {
+  font-size: 64px; font-weight: 900; margin-bottom: 12px;
+  background: linear-gradient(180deg, var(--gold-bright) 0%, var(--gold) 50%, #b8821f 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  text-shadow: 0 4px 30px rgba(255,184,48,0.2);
+}
+.char-select-intro p { color: var(--text-dim); font-size: 14px; letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 20px; }
+
+.filter-bar { display: flex; justify-content: center; gap: 10px; margin-bottom: 24px; flex-wrap: wrap; }
+.filter-btn {
+  background: rgba(0,0,0,0.5); border: 1px solid var(--border); color: var(--text-dim);
+  padding: 8px 24px; border-radius: 20px; font-family: 'Cinzel', serif; font-size: 13px; font-weight: 700;
+  cursor: pointer; transition: all 0.3s; letter-spacing: 0.1em;
+}
+.filter-btn:hover { border-color: var(--gold); color: var(--gold); }
+.filter-btn.active { background: rgba(255,184,48,0.1); border-color: var(--gold); color: var(--gold-bright); box-shadow: 0 0 15px rgba(255,184,48,0.2); }
+
+.class-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 18px; padding: 10px 0 40px; max-width: 1400px; margin: 0 auto;
+}
+.class-card {
+  background: linear-gradient(180deg, var(--bg-2), var(--bg-1));
+  border: 2px solid var(--border); border-radius: 12px; padding: 20px;
+  cursor: pointer; transition: all 0.3s cubic-bezier(0.16,1,0.3,1);
+  position: relative; overflow: hidden;
+}
+.class-card::before {
+  content: ''; position: absolute; inset: 0;
+  background: radial-gradient(circle at 50% 0%, var(--class-color, var(--gold)), transparent 60%);
+  opacity: 0.08; transition: opacity 0.4s;
+}
+.class-card:hover {
+  border-color: var(--class-color, var(--gold)); transform: translateY(-5px);
+  box-shadow: 0 15px 40px -10px rgba(0,0,0,0.6), 0 0 20px -10px var(--class-color, var(--gold));
+}
+.class-card:hover::before { opacity: 0.2; }
+.class-role-badge {
+  position: absolute; top: 12px; right: 12px; font-size: 9px; font-weight: 700;
+  padding: 3px 8px; border-radius: 4px; letter-spacing: 0.1em; text-transform: uppercase;
+  background: rgba(0,0,0,0.6); border: 1px solid var(--border);
+}
+.role-tank { color: #81C784; border-color: #81C784; }
+.role-healer { color: #64B5F6; border-color: #64B5F6; }
+.role-dps { color: #E57373; border-color: #E57373; }
+
+.class-icon {
+  width: 70px; height: 70px; margin: 0 auto 16px;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, var(--bg-3), var(--bg-2));
+  border: 2px solid var(--class-color, var(--gold)); border-radius: 50%;
+  box-shadow: 0 0 15px rgba(0,0,0,0.5);
+}
+.class-icon svg { width: 36px; height: 36px; fill: var(--class-color, var(--gold)); }
+.class-name { font-family: 'Cinzel', serif; font-size: 18px; font-weight: 900; text-align: center; color: var(--class-color, var(--gold)); margin-bottom: 4px; }
+.class-spec { text-align: center; font-size: 11px; color: var(--text-dim); letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 12px; }
+.class-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; font-size: 11px; margin-top: auto; }
+.class-stat { text-align: center; padding: 6px 4px; background: rgba(0,0,0,0.4); border-radius: 6px; border: 1px solid var(--border); }
+.class-stat-label { color: var(--text-mute); text-transform: uppercase; letter-spacing: 0.1em; font-size: 9px; margin-bottom: 2px; }
+.class-stat-value { color: var(--text); font-weight: 700; font-family: 'Cinzel', serif; font-size: 13px; }
+
+/* REUSABLE UI ELEMENTS */
+.btn {
+  background: linear-gradient(180deg, var(--bg-3), var(--bg-2)); border: 1px solid var(--border-bright);
+  border-radius: 8px; padding: 10px 20px; color: var(--text); font-family: 'Cinzel', serif;
+  font-size: 13px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase;
+  cursor: pointer; transition: all 0.2s;
+}
+.btn:hover { border-color: var(--gold); color: var(--gold); transform: translateY(-1px); }
+.btn-primary { background: linear-gradient(180deg, var(--gold), #c89020); border-color: var(--gold-bright); color: #1a1a2e; }
+.btn-primary:hover { background: linear-gradient(180deg, var(--gold-bright), var(--gold)); color: #0a0a18; box-shadow: 0 6px 20px -5px var(--gold); }
+
+/* TOWN & PANELS */
+.town-container { display: grid; grid-template-columns: 320px 1fr; gap: 20px; }
+@media (max-width: 1000px) { .town-container { grid-template-columns: 1fr; } }
+.player-panel {
+  background: linear-gradient(180deg, var(--bg-2), var(--bg-1)); border: 1px solid var(--border); border-radius: 14px; padding: 20px; position: relative; overflow: hidden;
+}
+.player-panel::before {
+  content: ''; position: absolute; inset: 0; background: radial-gradient(circle at 50% 0%, var(--player-color, var(--gold)), transparent 70%); opacity: 0.08; pointer-events: none;
+}
+.player-avatar {
+  width: 100px; height: 100px; margin: 0 auto 12px; display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, var(--bg-3), var(--bg-2)); border: 2px solid var(--player-color, var(--gold)); border-radius: 50%; box-shadow: 0 0 30px -5px var(--player-color, var(--gold));
+}
+.player-avatar svg { width: 50px; height: 50px; fill: var(--player-color, var(--gold)); }
+.player-name { font-family: 'Cinzel', serif; font-size: 22px; font-weight: 900; text-align: center; color: var(--player-color, var(--gold)); margin-bottom: 4px; }
+.player-level { text-align: center; font-size: 12px; color: var(--text-dim); letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 16px; }
+.player-level span { color: var(--gold); font-weight: 700; }
+
+.resource-bar { margin-bottom: 10px; }
+.bar-label { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px; }
+.bar-label .label-name { color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.1em; }
+.bar-label .label-value { color: var(--text); font-weight: 600; font-family: 'Cinzel', serif; font-size: 12px; }
+.bar-track { height: 14px; background: rgba(0,0,0,0.6); border: 1px solid var(--border); border-radius: 7px; overflow: hidden; position: relative; }
+.bar-fill { height: 100%; transition: width 0.6s cubic-bezier(0.16,1,0.3,1); position: relative; overflow: hidden; }
+.bar-fill::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent); animation: shimmer 2.5s infinite; }
+@keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+.bar-hp .bar-fill { background: linear-gradient(180deg, #ff5050, #c41e1e); }
+.bar-mana .bar-fill { background: linear-gradient(180deg, #6090ff, #2050cc); }
+.bar-xp .bar-fill { background: linear-gradient(180deg, #a335ee, #5c1889); }
+
+.stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin-top: 16px; font-size: 12px; }
+.stat-box { background: rgba(0,0,0,0.4); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; display: flex; justify-content: space-between; align-items: center; }
+.stat-label { color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.08em; font-size: 10px; }
+.stat-value { color: var(--text); font-weight: 700; font-family: 'Cinzel', serif; font-size: 13px; }
+
+.action-area { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+.action-card {
+  background: linear-gradient(180deg, var(--bg-2), var(--bg-1)); border: 1px solid var(--border); border-radius: 12px; padding: 22px;
+  cursor: pointer; transition: all 0.3s; position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between;
+}
+.action-card:hover { border-color: var(--accent-color, var(--gold)); transform: translateY(-3px); box-shadow: 0 12px 30px -8px rgba(0,0,0,0.5); }
+.action-card::before { content: ''; position: absolute; inset: 0; background: radial-gradient(circle at 100% 0%, var(--accent-color, var(--gold)), transparent 50%); opacity: 0.05; transition: opacity 0.3s; }
+.action-card:hover::before { opacity: 0.15; }
+.action-card.disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; filter: grayscale(1); }
+.action-icon {
+  width: 48px; height: 48px; display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, var(--bg-3), var(--bg-2)); border: 1px solid var(--accent-color, var(--gold)); border-radius: 10px; margin-bottom: 12px;
+}
+.action-icon svg { width: 28px; height: 28px; fill: var(--accent-color, var(--gold)); }
+.action-title { font-family: 'Cinzel', serif; font-size: 18px; font-weight: 900; color: var(--accent-color, var(--gold)); margin-bottom: 6px; }
+.action-desc { font-size: 12px; color: var(--text-dim); line-height: 1.5; margin-bottom: 12px; }
+.action-meta { font-size: 11px; color: var(--text-mute); text-transform: uppercase; letter-spacing: 0.1em; padding-top: 8px; border-top: 1px solid var(--border); }
+
+/* COMBAT & ARENA */
+.combat-arena { background: linear-gradient(180deg, var(--bg-2), var(--bg-1)); border: 1px solid var(--border); border-radius: 14px; padding: 24px; position: relative; overflow: hidden; }
+.combat-stage { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; min-height: 280px; align-items: center; position: relative; padding: 30px 20px; }
+.combat-fighter { text-align: center; position: relative; }
+.fighter-avatar {
+  width: 140px; height: 140px; margin: 0 auto 12px; display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, var(--bg-3), var(--bg-2)); border: 2px solid var(--fighter-color, var(--gold)); border-radius: 14px; position: relative; transition: transform 0.3s;
+}
+.fighter-avatar svg { width: 80px; height: 80px; fill: var(--fighter-color, var(--gold)); }
+.fighter-avatar.attacking { animation: attackPulse 0.4s; }
+.fighter-avatar.taking-damage { animation: damageShake 0.4s; }
+.fighter-avatar.dying { animation: dying 0.8s forwards; }
+@keyframes attackPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.15); box-shadow: 0 0 50px var(--fighter-color, var(--gold)); } }
+@keyframes damageShake { 0%, 100% { transform: translateX(0); } 20% { transform: translateX(-10px); filter: brightness(1.8) saturate(2); } 40% { transform: translateX(10px); } 60% { transform: translateX(-6px); } 80% { transform: translateX(4px); } }
+@keyframes dying { 0% { transform: scale(1) rotate(0); opacity: 1; } 100% { transform: scale(0.6) rotate(-15deg) translateY(30px); opacity: 0; filter: grayscale(1); } }
+.fighter-name { font-family: 'Cinzel', serif; font-size: 20px; font-weight: 900; color: var(--fighter-color, var(--gold)); margin-bottom: 8px; }
+
+.damage-numbers { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
+.dmg-num { position: absolute; font-family: 'Cinzel', serif; font-weight: 900; font-size: 28px; pointer-events: none; animation: dmgFloat 1.2s ease-out forwards; text-shadow: 0 0 10px currentColor, 2px 2px 0 #000, -1px -1px 0 #000; }
+.dmg-num.physical { color: #ff7070; } .dmg-num.magic { color: #c480ff; } .dmg-num.heal { color: #70ff70; } .dmg-num.crit { font-size: 46px; color: var(--gold-bright); }
+@keyframes dmgFloat { 0% { transform: translate(0,0) scale(0.5); opacity: 0; } 20% { transform: translate(0,-30px) scale(1.2); opacity: 1; } 80% { transform: translate(0,-80px) scale(1); opacity: 1; } 100% { transform: translate(0,-120px) scale(0.8); opacity: 0; } }
+
+.ability-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 24px; padding: 16px; background: rgba(0,0,0,0.5); border-radius: 12px; border: 1px solid var(--border); }
+.ability-btn {
+  background: linear-gradient(180deg, var(--bg-3), var(--bg-2)); border: 1px solid var(--border-bright); border-radius: 10px; padding: 12px 6px;
+  cursor: pointer; transition: all 0.2s; position: relative; overflow: hidden; text-align: center;
+}
+.ability-btn:hover:not(:disabled) { border-color: var(--gold); transform: translateY(-2px); box-shadow: 0 6px 20px -5px var(--gold); }
+.ability-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.ability-name { font-family: 'Cinzel', serif; font-size: 13px; font-weight: 900; color: var(--gold); margin-bottom: 4px; line-height: 1.2; }
+.ability-cost { font-size: 10px; color: var(--mana); }
+.ability-desc { font-size: 10px; color: var(--text-mute); margin-top: 4px; line-height: 1.3; }
+.ability-cd { position: absolute; inset: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; font-family: 'Cinzel', serif; font-size: 32px; font-weight: 900; color: var(--health); }
+
+.combat-log { margin-top: 16px; background: rgba(0,0,0,0.6); border: 1px solid var(--border); border-radius: 8px; padding: 12px; height: 130px; overflow-y: auto; font-size: 12px; }
+.log-entry { padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05); color: var(--text-dim); }
+.log-entry span.log-player { color: var(--gold); font-weight: 700; }
+.log-entry span.log-enemy { color: #ff7070; font-weight: 700; }
+.log-entry span.log-heal { color: #70ff70; font-weight: 700; }
+.log-entry span.log-crit { color: var(--gold-bright); font-weight: 900; }
+
+/* MAP & OTHERS */
+.map-container { display: grid; grid-template-columns: 1fr 280px; gap: 20px; }
+.map-wrapper { background: linear-gradient(180deg, var(--bg-2), var(--bg-1)); border: 1px solid var(--border); border-radius: 14px; padding: 16px; position: relative; }
+#map-canvas { width: 100%; height: 600px; display: block; background: radial-gradient(ellipse at center, #1a1a35, #0a0a18); border-radius: 8px; cursor: pointer; }
+.map-sidebar { background: linear-gradient(180deg, var(--bg-2), var(--bg-1)); border: 1px solid var(--border); border-radius: 14px; padding: 20px; }
+
+.section-title { font-family: 'Cinzel', serif; font-size: 18px; font-weight: 900; color: var(--gold); margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; }
+.section-title::before { content: ''; display: block; width: 4px; height: 18px; background: var(--gold); border-radius: 2px; }
+
+.toast { position: fixed; top: 20px; right: 20px; background: linear-gradient(180deg, var(--bg-3), var(--bg-2)); border: 1px solid var(--gold); border-radius: 8px; padding: 12px 20px; color: var(--gold); font-family: 'Cinzel', serif; font-size: 13px; font-weight: 600; z-index: 1000; animation: toastIn 0.4s, toastOut 0.4s 2.6s forwards; box-shadow: 0 10px 30px rgba(0,0,0,0.8); }
+@keyframes toastIn { from { opacity: 0; transform: translateX(100px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes toastOut { to { opacity: 0; transform: translateX(100px); } }
+
+/* INVENTORY */
+.inventory-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.item-card { background: linear-gradient(180deg, var(--bg-3), var(--bg-2)); border: 1px solid var(--rarity-color, var(--common)); border-radius: 8px; padding: 12px; cursor: pointer; transition: all 0.2s; position: relative; }
+.item-card:hover { transform: translateY(-3px); box-shadow: 0 8px 20px -5px var(--rarity-color, var(--common)); }
+.item-card.equipped::after { content: 'EQUIPPED'; position: absolute; top: 4px; right: 4px; background: var(--gold); color: #000; font-size: 8px; font-weight: 700; padding: 2px 5px; border-radius: 3px; letter-spacing: 0.1em; }
+.item-name { font-family: 'Cinzel', serif; font-size: 13px; font-weight: 900; color: var(--rarity-color, var(--common)); margin-bottom: 4px; line-height: 1.2; }
+.item-slot { font-size: 9px; color: var(--text-mute); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 4px; }
+.item-stats { font-size: 10px; color: var(--text-dim); line-height: 1.6; }
+.item-stats div { color: var(--uncommon); }
+
+.equip-slots { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.equip-slot { background: rgba(0,0,0,0.5); border: 1px solid var(--border); border-radius: 8px; padding: 10px; font-size: 11px; min-height: 55px; }
+.equip-slot-name { color: var(--text-mute); font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; }
+.equip-slot-item { color: var(--rarity-color, var(--text-dim)); font-weight: 700; margin-top: 4px; font-size: 12px; }
+
+/* MISC */
+.buff-indicator { display: inline-block; padding: 2px 6px; background: rgba(0,0,0,0.6); border: 1px solid var(--gold); border-radius: 4px; font-size: 10px; font-weight: bold; color: var(--gold); margin: 2px; }
+.level-up-burst { position: fixed; inset: 0; pointer-events: none; z-index: 999; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle, rgba(255,184,48,0.3), transparent 60%); animation: burstFade 2s forwards; }
+.level-up-text { font-family: 'Cinzel', serif; font-size: 80px; font-weight: 900; color: var(--gold-bright); text-shadow: 0 0 60px var(--gold), 0 0 20px var(--gold-bright); animation: levelUpAnim 2s ease-out forwards; }
+@keyframes levelUpAnim { 0% { opacity: 0; transform: scale(0.3); } 20% { opacity: 1; transform: scale(1.2); } 80% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(1.5); } }
+@keyframes burstFade { 0%,100% { opacity: 0; } 20%,80% { opacity: 1; } }
+
+.result-screen { text-align: center; padding: 40px 20px; }
+.result-title { font-family: 'Cinzel', serif; font-size: 56px; font-weight: 900; margin-bottom: 16px; }
+.result-title.victory { background: linear-gradient(180deg, var(--gold-bright), var(--gold)); -webkit-background-clip: text; background-clip: text; color: transparent; text-shadow: 0 0 40px rgba(255,184,48,0.4); }
+.result-title.defeat { color: var(--health); text-shadow: 0 0 40px rgba(229,64,64,0.4); }
+.result-rewards { display: flex; justify-content: center; gap: 12px; margin: 24px auto; flex-wrap: wrap; }
+.reward-card { background: rgba(0,0,0,0.5); border: 1px solid var(--border); border-radius: 8px; padding: 14px 24px; min-width: 140px; }
+.reward-label { font-size: 11px; color: var(--text-mute); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 6px; }
+.reward-value { font-family: 'Cinzel', serif; font-size: 24px; font-weight: 900; color: var(--gold); }
+.loot-list { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin: 16px auto; }
+</style>
+</head>
+<body>
+
+<div id="game">
+
+<!-- CHARACTER SELECT -->
+<section id="screen-character" class="screen active">
+  <div class="char-select-intro">
+    <h1>AZEROTH BOARD</h1>
+    <p>Pilih Spesialisasi Kelas - 39 Class Tersedia</p>
+    <div class="filter-bar" id="filter-bar">
+      <button class="filter-btn active" onclick="filterClass('all')">All Classes</button>
+      <button class="filter-btn" onclick="filterClass('tank')" style="color:#81C784;">🛡 Tanks</button>
+      <button class="filter-btn" onclick="filterClass('healer')" style="color:#64B5F6;">❤️ Healers</button>
+      <button class="filter-btn" onclick="filterClass('dps')" style="color:#E57373;">⚔ DPS</button>
+    </div>
+  </div>
+  <div class="class-grid" id="class-grid"></div>
+  <div style="text-align:center; margin-top: 20px;">
+    <button class="btn btn-primary" onclick="loadSavedGame()" id="continue-btn" style="display:none; padding: 14px 30px; font-size: 16px;">Lanjutkan Perjalanan</button>
+  </div>
+</section>
+
+<!-- TOWN HUB -->
+<section id="screen-town" class="screen">
+  <div class="game-header">
+    <div>
+      <div class="game-title">Azeroth Board</div>
+      <div class="game-subtitle">Sanctuary Town Hub</div>
+    </div>
+    <div style="display:flex; gap:8px;">
+      <button class="btn" onclick="showScreen('inventory')">Inventory</button>
+      <button class="btn" onclick="saveGame()">Save</button>
+      <button class="btn" onclick="confirmReset()" style="border-color:var(--health); color:var(--health);">Reset</button>
+    </div>
+  </div>
+  <div class="town-container">
+    <div class="player-panel" id="player-panel"></div>
+    <div class="action-area" id="action-area"></div>
+  </div>
+</section>
+
+<!-- WORLD MAP -->
+<section id="screen-map" class="screen">
+  <div class="game-header">
+    <div>
+      <div class="game-title">World Map</div>
+      <div class="game-subtitle">Klik tile terdekat untuk bergerak</div>
+    </div>
+    <button class="btn" onclick="returnToTown()">Kembali ke Town</button>
+  </div>
+  <div class="map-container">
+    <div class="map-wrapper"><canvas id="map-canvas" width="900" height="600"></canvas></div>
+    <div class="map-sidebar">
+      <div class="section-title">Tile Info</div>
+      <div id="tile-info" style="font-size:13px; color:var(--text-dim); line-height:1.6;">
+        <p>Klik tile di peta untuk melihat info. Klik tile yang bersebelahan dengan posisimu untuk bergerak.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- COMBAT -->
+<section id="screen-combat" class="screen">
+  <div class="game-header">
+    <div>
+      <div class="game-title" id="combat-title">Combat</div>
+      <div class="game-subtitle" id="combat-subtitle">Battle in progress</div>
+    </div>
+    <button class="btn" onclick="tryFlee()" id="flee-btn">Flee</button>
+  </div>
+  <div class="combat-arena">
+    <div class="combat-stage" id="combat-stage">
+      <div class="combat-fighter" id="fighter-player"></div>
+      <div class="combat-fighter" id="fighter-enemy-container"></div>
+      <div class="damage-numbers" id="damage-numbers"></div>
+    </div>
+    <div class="ability-bar" id="ability-bar"></div>
+    <div class="combat-log" id="combat-log"></div>
+  </div>
+</section>
+
+<!-- INVENTORY -->
+<section id="screen-inventory" class="screen">
+  <div class="game-header">
+    <div>
+      <div class="game-title">Inventory</div>
+      <div class="game-subtitle">Equipment & Backpack</div>
+    </div>
+    <button class="btn" onclick="showScreen('town')">Kembali</button>
+  </div>
+  <div style="display: grid; grid-template-columns: 1fr 1.5fr; gap: 20px;">
+    <div><div class="section-title">Equipped</div><div class="equip-slots" id="equip-slots"></div></div>
+    <div><div class="section-title">Backpack</div><div class="inventory-grid" id="inventory-grid"></div></div>
+  </div>
+</section>
+
+<!-- RESULT -->
+<section id="screen-result" class="screen">
+  <div class="result-screen" id="result-content"></div>
+</section>
+
+</div>
+<div id="toast-container"></div>
+
+<script>
+// ==========================================
+// DATA: WOW ICONS (SVG PATHS)
+// ==========================================
+const ICONS = {
+  warrior: 'M19.7 4.3c-.4-.4-1-.4-1.4 0L12 10.6 5.7 4.3c-.4-.4-1-.4-1.4 0s-.4 1 0 1.4l6.3 6.3-6.3 6.3c-.4.4-.4 1 0 1.4.2.2.5.3.7.3s.5-.1.7-.3l6.3-6.3 6.3 6.3c.2.2.5.3.7.3s.5-.1.7-.3c.4-.4.4-1 0-1.4L13.4 12l6.3-6.3c.4-.4.4-1 0-1.4z',
+  paladin: 'M12 2L10 8h4L12 2zm-4 7L2 12l6 3v-6zm8 0v6l6-3-6-3zm-6 2v11h4V11h-4z',
+  hunter: 'M12 2L4 10l8 12 8-12L12 2zm0 3.5l4.5 4.5-4.5 7-4.5-7L12 5.5z',
+  rogue: 'M7 2L5 4l5 5-7 7 2 2 7-7 5 5 2-2-12-12zm10 0l-5 5 2 2 5-5-2-2z',
+  priest: 'M12 2a5 5 0 0 0-5 5c0 2.5 4 8 5 13 1-5 5-10.5 5-13a5 5 0 0 0-5-5zm0 2.5c1.4 0 2.5 1.1 2.5 2.5S13.4 9.5 12 9.5 9.5 8.4 9.5 7 10.6 4.5 12 4.5z',
+  dk: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-2-12h4v8h-4z',
+  shaman: 'M12 2L2 22h20L12 2zm0 5l5 12H7l5-12z',
+  mage: 'M12 2l-6 6v8l6 6 6-6V8l-6-6zm0 3l3 3v6l-3 3-3-3V8l3-3z',
+  warlock: 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16zm-3-9h6v2H9v-2z',
+  monk: 'M12 2c-5.5 0-10 4.5-10 10s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm0 18c-4.4 0-8-3.6-8-8s3.6-8 8-8 8 3.6 8 8-3.6 8-8 8zm-1-11h2v6h-2z',
+  druid: 'M12 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm-5 5c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm10 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zM12 10c-3 0-5 2-5 5v5h10v-5c0-3-2-5-5-5z',
+  dh: 'M12 2L2 12l2 2 8-6 8 6 2-2L12 2zm0 6l-4 4h8l-4-4zm-6 8c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2v-2H6v2z',
+  evoker: 'M12 2l-8 4v6c0 5.5 3.8 10.7 8 12 4.2-1.3 8-6.5 8-12V6l-8-4zm0 17.5c-3.1-1.1-5.5-5.2-5.5-9V7.1l5.5-2.8 5.5 2.8V10.5c0 3.8-2.4 7.9-5.5 9z'
+};
+
+const STATS = {
+  tank: { hp: 180, mana: 60, atk: 18, def: 25, crit: 5, speed: 8 },
+  healer: { hp: 110, mana: 160, atk: 14, def: 12, crit: 10, speed: 10 },
+  dps_m: { hp: 130, mana: 80, atk: 28, def: 14, crit: 15, speed: 12 },
+  dps_r: { hp: 100, mana: 130, atk: 26, def: 8, crit: 14, speed: 10 }
+};
+
+// ==========================================
+// DATA: 39 WOW CLASSES (SPECS)
+// ==========================================
+const CLASSES = {
+  // === TANKS ===
+  prot_warrior: { name: 'Warrior', spec: 'Protection', role: 'tank', color: 'var(--c-warrior)', icon: ICONS.warrior, baseStats: STATS.tank,
+    abilities: [
+      { name: 'Shield Slam', cost: 0, cd: 0, dmg: 1.0, type: 'physical', desc: 'Serangan dasar menggunakan perisai.' },
+      { name: 'Thunder Clap', cost: 15, cd: 2, dmg: 0.8, type: 'physical', desc: 'Serangan AoE ke semua musuh.', aoe: true },
+      { name: 'Ignore Pain', cost: 25, cd: 4, dmg: 0, type: 'buff', desc: '+50% DEF selama 3 turn.', buff: { type: 'def', value: 0.5, duration: 3 } },
+      { name: 'Last Stand', cost: 30, cd: 5, dmg: 0, type: 'heal', desc: 'Heal 40% Max HP seketika.', heal: 0.4 } ] },
+  prot_paladin: { name: 'Paladin', spec: 'Protection', role: 'tank', color: 'var(--c-paladin)', icon: ICONS.paladin, baseStats: STATS.tank,
+    abilities: [
+      { name: 'Hammer of Righteous', cost: 0, cd: 0, dmg: 1.0, type: 'magic', desc: 'Serangan Holy melee.' },
+      { name: 'Avenger\'s Shield', cost: 15, cd: 2, dmg: 1.5, type: 'magic', desc: 'Lempar perisai holy + Stun 1 turn.', stun: 1 },
+      { name: 'Consecration', cost: 20, cd: 3, dmg: 0.5, type: 'magic', desc: 'DoT Holy area 4 turn.', aoe: true, dot: { dmg: 0.4, duration: 4 } },
+      { name: 'Ardent Defender', cost: 25, cd: 4, dmg: 0, type: 'buff', desc: '+40% DEF selama 3 turn.', buff: { type: 'def', value: 0.4, duration: 3 } } ] },
+  guardian_druid: { name: 'Druid', spec: 'Guardian', role: 'tank', color: 'var(--c-druid)', icon: ICONS.druid, baseStats: STATS.tank,
+    abilities: [
+      { name: 'Mangle', cost: 0, cd: 0, dmg: 1.1, type: 'physical', desc: 'Cakaran beruang.' },
+      { name: 'Thrash', cost: 15, cd: 2, dmg: 0.6, type: 'physical', desc: 'AoE Bleed DoT.', aoe: true, dot: { dmg: 0.3, duration: 3 } },
+      { name: 'Frenzied Regen', cost: 25, cd: 4, dmg: 0, type: 'heal', desc: 'Heal 35% Max HP.', heal: 0.35 },
+      { name: 'Ironfur', cost: 20, cd: 3, dmg: 0, type: 'buff', desc: '+60% DEF selama 2 turn.', buff: { type: 'def', value: 0.6, duration: 2 } } ] },
+  blood_dk: { name: 'Death Knight', spec: 'Blood', role: 'tank', color: 'var(--c-dk)', icon: ICONS.dk, baseStats: STATS.tank,
+    abilities: [
+      { name: 'Heart Strike', cost: 0, cd: 0, dmg: 1.0, type: 'physical', desc: 'Serangan darah melee.' },
+      { name: 'Blood Boil', cost: 15, cd: 2, dmg: 0.8, type: 'magic', desc: 'AoE Blood damage.', aoe: true },
+      { name: 'Death Strike', cost: 30, cd: 3, dmg: 1.5, type: 'physical', desc: 'Serangan mematikan, 50% Lifesteal.', lifeSteal: 0.5 },
+      { name: 'Vampiric Blood', cost: 25, cd: 4, dmg: 0, type: 'buff', desc: '+30% HP & DEF selama 3 turn.', buff: { type: 'def', value: 0.3, duration: 3 } } ] },
+  brewmaster_monk: { name: 'Monk', spec: 'Brewmaster', role: 'tank', color: 'var(--c-monk)', icon: ICONS.monk, baseStats: STATS.tank,
+    abilities: [
+      { name: 'Blackout Kick', cost: 0, cd: 0, dmg: 1.0, type: 'physical', desc: 'Tendangan bela diri.' },
+      { name: 'Keg Smash', cost: 20, cd: 2, dmg: 1.2, type: 'physical', desc: 'Lempar bir AoE, kurang accuracy musuh.', aoe: true },
+      { name: 'Purifying Brew', cost: 25, cd: 3, dmg: 0, type: 'heal', desc: 'Hapus efek buruk, heal 30%.', heal: 0.3 },
+      { name: 'Fortifying Brew', cost: 30, cd: 5, dmg: 0, type: 'buff', desc: '+50% DEF selama 3 turn.', buff: { type: 'def', value: 0.5, duration: 3 } } ] },
+  vengeance_dh: { name: 'Demon Hunter', spec: 'Vengeance', role: 'tank', color: 'var(--c-dh)', icon: ICONS.dh, baseStats: STATS.tank,
+    abilities: [
+      { name: 'Shear', cost: 0, cd: 0, dmg: 1.0, type: 'physical', desc: 'Tebasan glaive dasar.' },
+      { name: 'Immolation Aura', cost: 15, cd: 3, dmg: 0.5, type: 'magic', desc: 'AoE Fire damage.', aoe: true },
+      { name: 'Soul Cleave', cost: 30, cd: 2, dmg: 1.4, type: 'physical', desc: 'Serangan lifesteal 40%.', lifeSteal: 0.4 },
+      { name: 'Metamorphosis', cost: 40, cd: 5, dmg: 0, type: 'buff', desc: '+50% ATK & DEF selama 2 turn.', buff: { type: 'def', value: 0.5, duration: 2 } } ] },
+
+  // === HEALERS ===
+  holy_priest: { name: 'Priest', spec: 'Holy', role: 'healer', color: 'var(--c-priest)', icon: ICONS.priest, baseStats: STATS.healer,
+    abilities: [
+      { name: 'Smite', cost: 0, cd: 0, dmg: 1.0, type: 'magic', desc: 'Serangan Holy dasar.' },
+      { name: 'Holy Fire', cost: 15, cd: 2, dmg: 1.4, type: 'magic', desc: 'DoT Holy damage.', dot: { dmg: 0.3, duration: 3 } },
+      { name: 'Heal', cost: 25, cd: 2, dmg: 0, type: 'heal', desc: 'Restore 35% HP.', heal: 0.35 },
+      { name: 'Guardian Spirit', cost: 40, cd: 5, dmg: 0, type: 'heal', desc: 'Restore 70% HP darurat.', heal: 0.70 } ] },
+  disc_priest: { name: 'Priest', spec: 'Discipline', role: 'healer', color: 'var(--c-priest)', icon: ICONS.priest, baseStats: STATS.healer,
+    abilities: [
+      { name: 'Penance', cost: 0, cd: 0, dmg: 1.2, type: 'magic', desc: 'Serangan cahaya cepat.' },
+      { name: 'Purge the Wicked', cost: 18, cd: 2, dmg: 0.5, type: 'magic', desc: 'DoT + Heal 20%.', dot: { dmg: 0.4, duration: 3 }, heal: 0.2 },
+      { name: 'Power Word: Shield', cost: 25, cd: 3, dmg: 0, type: 'buff', desc: '+60% DEF selama 2 turn.', buff: { type: 'def', value: 0.6, duration: 2 } },
+      { name: 'Pain Suppression', cost: 35, cd: 5, dmg: 0, type: 'heal', desc: 'Heal 50% & +40% DEF.', heal: 0.5, buff: { type: 'def', value: 0.4, duration: 2 } } ] },
+  resto_shaman: { name: 'Shaman', spec: 'Restoration', role: 'healer', color: 'var(--c-shaman)', icon: ICONS.shaman, baseStats: STATS.healer,
+    abilities: [
+      { name: 'Lightning Bolt', cost: 0, cd: 0, dmg: 1.1, type: 'magic', desc: 'Serangan petir.' },
+      { name: 'Lava Burst', cost: 20, cd: 2, dmg: 1.8, type: 'magic', desc: 'Serangan api 180% damage.' },
+      { name: 'Healing Wave', cost: 30, cd: 2, dmg: 0, type: 'heal', desc: 'Restore 40% HP.', heal: 0.4 },
+      { name: 'Spirit Link', cost: 40, cd: 5, dmg: 0, type: 'buff', desc: 'Heal 30% & +50% DEF.', heal: 0.3, buff: { type: 'def', value: 0.5, duration: 3 } } ] },
+  resto_druid: { name: 'Druid', spec: 'Restoration', role: 'healer', color: 'var(--c-druid)', icon: ICONS.druid, baseStats: STATS.healer,
+    abilities: [
+      { name: 'Wrath', cost: 0, cd: 0, dmg: 1.0, type: 'magic', desc: 'Serangan alam.' },
+      { name: 'Moonfire', cost: 15, cd: 0, dmg: 0.4, type: 'magic', desc: 'DoT Arcane damage.', dot: { dmg: 0.4, duration: 4 } },
+      { name: 'Rejuvenation', cost: 25, cd: 2, dmg: 0, type: 'heal', desc: 'Heal cepat 35% HP.', heal: 0.35 },
+      { name: 'Tranquility', cost: 40, cd: 5, dmg: 0, type: 'heal', desc: 'Heal besar 80% Max HP.', heal: 0.8 } ] },
+  holy_paladin: { name: 'Paladin', spec: 'Holy', role: 'healer', color: 'var(--c-paladin)', icon: ICONS.paladin, baseStats: STATS.healer,
+    abilities: [
+      { name: 'Crusader Strike', cost: 0, cd: 0, dmg: 1.0, type: 'physical', desc: 'Serangan melee holy.' },
+      { name: 'Holy Shock', cost: 20, cd: 2, dmg: 1.5, type: 'magic', desc: 'Damage tinggi, heal 20%.', heal: 0.2 },
+      { name: 'Flash of Light', cost: 30, cd: 2, dmg: 0, type: 'heal', desc: 'Heal cepat 40% HP.', heal: 0.4 },
+      { name: 'Lay on Hands', cost: 50, cd: 6, dmg: 0, type: 'heal', desc: 'Heal 100% Max HP.', heal: 1.0 } ] },
+  mistweaver_monk: { name: 'Monk', spec: 'Mistweaver', role: 'healer', color: 'var(--c-monk)', icon: ICONS.monk, baseStats: STATS.healer,
+    abilities: [
+      { name: 'Tiger Palm', cost: 0, cd: 0, dmg: 1.0, type: 'physical', desc: 'Serangan jarak dekat.' },
+      { name: 'Rising Sun Kick', cost: 20, cd: 2, dmg: 1.6, type: 'physical', desc: 'Tendangan kuat.' },
+      { name: 'Enveloping Mist', cost: 30, cd: 2, dmg: 0, type: 'heal', desc: 'Heal 45% HP.', heal: 0.45 },
+      { name: 'Revival', cost: 45, cd: 5, dmg: 0, type: 'heal', desc: 'Heal 70% HP & bersihkan debuff.', heal: 0.7 } ] },
+  preservation_evoker: { name: 'Evoker', spec: 'Preservation', role: 'healer', color: 'var(--c-evoker)', icon: ICONS.evoker, baseStats: STATS.healer,
+    abilities: [
+      { name: 'Living Flame', cost: 0, cd: 0, dmg: 1.1, type: 'magic', desc: 'Api naga.' },
+      { name: 'Fire Breath', cost: 20, cd: 3, dmg: 0.8, type: 'magic', desc: 'AoE naga + DoT.', aoe: true, dot: { dmg: 0.3, duration: 3 } },
+      { name: 'Spiritbloom', cost: 35, cd: 3, dmg: 0, type: 'heal', desc: 'Heal 50% HP.', heal: 0.5 },
+      { name: 'Rewind', cost: 50, cd: 6, dmg: 0, type: 'heal', desc: 'Kembalikan waktu, Heal 80% HP.', heal: 0.8 } ] },
+
+  // === DPS (MELEE & RANGED) ===
+  arms_warrior: { name: 'Warrior', spec: 'Arms', role: 'dps', color: 'var(--c-warrior)', icon: ICONS.warrior, baseStats: STATS.dps_m,
+    abilities: [
+      { name: 'Mortal Strike', cost: 0, cd: 0, dmg: 1.3, type: 'physical', desc: 'Serangan senjata dua tangan.' },
+      { name: 'Overpower', cost: 15, cd: 2, dmg: 1.8, type: 'physical', desc: 'Serangan akurat +20% Crit.', critBonus: 20 },
+      { name: 'Bladestorm', cost: 30, cd: 4, dmg: 1.4, type: 'physical', desc: 'Putaran pedang AoE.', aoe: true },
+      { name: 'Colossus Smash', cost: 25, cd: 5, dmg: 2.0, type: 'physical', desc: '+30% ATK selama 2 turn.', buff: { type: 'atk', value: 0.3, duration: 2 } } ] },
+  fury_warrior: { name: 'Warrior', spec: 'Fury', role: 'dps', color: 'var(--c-warrior)', icon: ICONS.warrior, baseStats: STATS.dps_m,
+    abilities: [
+      { name: 'Bloodthirst', cost: 0, cd: 0, dmg: 1.0, type: 'physical', desc: 'Serangan + 10% Lifesteal.', lifeSteal: 0.1 },
+      { name: 'Raging Blow', cost: 15, cd: 1, dmg: 1.6, type: 'physical', desc: 'Pukulan ganda.' },
+      { name: 'Rampage', cost: 30, cd: 3, dmg: 2.5, type: 'physical', desc: 'Serangan brutal bertubi-tubi.' },
+      { name: 'Recklessness', cost: 25, cd: 5, dmg: 0, type: 'buff', desc: '+50% ATK & +30% Crit.', buff: { type: 'atk', value: 0.5, duration: 3 }, critBonus: 30 } ] },
+  ret_paladin: { name: 'Paladin', spec: 'Retribution', role: 'dps', color: 'var(--c-paladin)', icon: ICONS.paladin, baseStats: STATS.dps_m,
+    abilities: [
+      { name: 'Crusader Strike', cost: 0, cd: 0, dmg: 1.1, type: 'physical', desc: 'Serangan holy.' },
+      { name: 'Templar\'s Verdict', cost: 20, cd: 2, dmg: 2.2, type: 'magic', desc: 'Hukuman cahaya 220% dmg.' },
+      { name: 'Divine Storm', cost: 25, cd: 3, dmg: 1.5, type: 'magic', desc: 'AoE Holy damage.', aoe: true },
+      { name: 'Avenging Wrath', cost: 30, cd: 5, dmg: 0, type: 'buff', desc: 'Sayap cahaya, +40% ATK.', buff: { type: 'atk', value: 0.4, duration: 3 } } ] },
+  bm_hunter: { name: 'Hunter', spec: 'Beast Mastery', role: 'dps', color: 'var(--c-hunter)', icon: ICONS.hunter, baseStats: STATS.dps_r,
+    abilities: [
+      { name: 'Cobra Shot', cost: 0, cd: 0, dmg: 1.0, type: 'physical', desc: 'Tembakan beracun.' },
+      { name: 'Kill Command', cost: 20, cd: 2, dmg: 1.8, type: 'physical', desc: 'Perintah pet menyerang.' },
+      { name: 'Multi-Shot', cost: 25, cd: 3, dmg: 1.2, type: 'physical', desc: 'Tembakan AoE.', aoe: true },
+      { name: 'Bestial Wrath', cost: 30, cd: 5, dmg: 1.5, type: 'physical', desc: 'Pet mengamuk, +30% ATK buff.', buff: { type: 'atk', value: 0.3, duration: 3 } } ] },
+  mm_hunter: { name: 'Hunter', spec: 'Marksmanship', role: 'dps', color: 'var(--c-hunter)', icon: ICONS.hunter, baseStats: STATS.dps_r,
+    abilities: [
+      { name: 'Arcane Shot', cost: 0, cd: 0, dmg: 1.2, type: 'magic', desc: 'Tembakan energi.' },
+      { name: 'Aimed Shot', cost: 25, cd: 3, dmg: 2.5, type: 'physical', desc: 'Tembakan jitu 250% dmg.' },
+      { name: 'Rapid Fire', cost: 20, cd: 4, dmg: 1.8, type: 'physical', desc: 'Berondongan panah.' },
+      { name: 'Trueshot', cost: 30, cd: 5, dmg: 0, type: 'buff', desc: '+50% Crit Chance 3 turn.', buff: { type: 'atk', value: 0.2, duration: 3 }, critBonus: 50 } ] },
+  surv_hunter: { name: 'Hunter', spec: 'Survival', role: 'dps', color: 'var(--c-hunter)', icon: ICONS.hunter, baseStats: STATS.dps_m,
+    abilities: [
+      { name: 'Raptor Strike', cost: 0, cd: 0, dmg: 1.2, type: 'physical', desc: 'Tebasan tombak.' },
+      { name: 'Wildfire Bomb', cost: 20, cd: 3, dmg: 1.0, type: 'magic', desc: 'AoE Fire DoT.', aoe: true, dot: { dmg: 0.5, duration: 3 } },
+      { name: 'Mongoose Bite', cost: 15, cd: 2, dmg: 2.0, type: 'physical', desc: 'Serangan buas jarak dekat.' },
+      { name: 'Coordinated', cost: 30, cd: 5, dmg: 0, type: 'buff', desc: '+40% ATK bersama pet.', buff: { type: 'atk', value: 0.4, duration: 3 } } ] },
+  assassination_rogue: { name: 'Rogue', spec: 'Assassination', role: 'dps', color: 'var(--c-rogue)', icon: ICONS.rogue, baseStats: STATS.dps_m,
+    abilities: [
+      { name: 'Mutilate', cost: 0, cd: 0, dmg: 1.1, type: 'physical', desc: 'Tusukan ganda.' },
+      { name: 'Garrote', cost: 15, cd: 3, dmg: 0.5, type: 'physical', desc: 'Bleed DoT mematikan.', dot: { dmg: 0.8, duration: 4 } },
+      { name: 'Envenom', cost: 25, cd: 2, dmg: 2.0, type: 'magic', desc: 'Damage racun instan.' },
+      { name: 'Vendetta', cost: 30, cd: 5, dmg: 0, type: 'buff', desc: 'Tandai target, +40% ATK.', buff: { type: 'atk', value: 0.4, duration: 3 } } ] },
+  outlaw_rogue: { name: 'Rogue', spec: 'Outlaw', role: 'dps', color: 'var(--c-rogue)', icon: ICONS.rogue, baseStats: STATS.dps_m,
+    abilities: [
+      { name: 'Sinister Strike', cost: 0, cd: 0, dmg: 1.2, type: 'physical', desc: 'Tebasan pedang.' },
+      { name: 'Pistol Shot', cost: 15, cd: 2, dmg: 1.5, type: 'physical', desc: 'Tembakan pistol + Stun.', stun: 1 },
+      { name: 'Dispatch', cost: 25, cd: 3, dmg: 2.2, type: 'physical', desc: 'Penyelesaian brutal.' },
+      { name: 'Adrenaline Rush', cost: 30, cd: 5, dmg: 0, type: 'buff', desc: '+50% ATK & Speed.', buff: { type: 'atk', value: 0.5, duration: 3 } } ] },
+  subtlety_rogue: { name: 'Rogue', spec: 'Subtlety', role: 'dps', color: 'var(--c-rogue)', icon: ICONS.rogue, baseStats: STATS.dps_m,
+    abilities: [
+      { name: 'Backstab', cost: 0, cd: 0, dmg: 1.3, type: 'physical', desc: 'Tusukan dari belakang.' },
+      { name: 'Shadowstrike', cost: 20, cd: 2, dmg: 1.8, type: 'magic', desc: 'Teleport & serang.' },
+      { name: 'Eviscerate', cost: 25, cd: 3, dmg: 2.5, type: 'physical', desc: 'Damage murni mematikan.' },
+      { name: 'Shadow Dance', cost: 30, cd: 5, dmg: 0, type: 'buff', desc: '+40% Crit Chance.', buff: { type: 'atk', value: 0.2, duration: 3 }, critBonus: 40 } ] },
+  shadow_priest: { name: 'Priest', spec: 'Shadow', role: 'dps', color: 'var(--c-priest)', icon: ICONS.priest, baseStats: STATS.dps_r,
+    abilities: [
+      { name: 'Mind Flay', cost: 0, cd: 0, dmg: 1.0, type: 'magic', desc: 'Siksaan mental.' },
+      { name: 'Vampiric Touch', cost: 20, cd: 2, dmg: 0.5, type: 'magic', desc: 'DoT + 50% Lifesteal.', dot: { dmg: 0.5, duration: 4 }, lifeSteal: 0.5 },
+      { name: 'Devouring Plague', cost: 25, cd: 3, dmg: 1.8, type: 'magic', desc: 'Penyakit mematikan.' },
+      { name: 'Void Eruption', cost: 35, cd: 5, dmg: 2.0, type: 'magic', desc: 'Ledakan void AoE.', aoe: true } ] },
+  ele_shaman: { name: 'Shaman', spec: 'Elemental', role: 'dps', color: 'var(--c-shaman)', icon: ICONS.shaman, baseStats: STATS.dps_r,
+    abilities: [
+      { name: 'Lightning Bolt', cost: 0, cd: 0, dmg: 1.2, type: 'magic', desc: 'Baut petir.' },
+      { name: 'Lava Burst', cost: 20, cd: 2, dmg: 2.0, type: 'magic', desc: 'Bola lahar 100% Crit.', critBonus: 100 },
+      { name: 'Earthquake', cost: 30, cd: 4, dmg: 1.2, type: 'magic', desc: 'AoE damage alam.', aoe: true },
+      { name: 'Ascendance', cost: 35, cd: 5, dmg: 0, type: 'buff', desc: 'Berubah jadi elemen, +50% ATK.', buff: { type: 'atk', value: 0.5, duration: 3 } } ] },
+  enh_shaman: { name: 'Shaman', spec: 'Enhancement', role: 'dps', color: 'var(--c-shaman)', icon: ICONS.shaman, baseStats: STATS.dps_m,
+    abilities: [
+      { name: 'Stormstrike', cost: 0, cd: 0, dmg: 1.3, type: 'physical', desc: 'Pukulan senjata elemen.' },
+      { name: 'Lava Lash', cost: 15, cd: 2, dmg: 1.6, type: 'magic', desc: 'Tebasan lahar.' },
+      { name: 'Crash Lightning', cost: 25, cd: 3, dmg: 1.4, type: 'magic', desc: 'Petir berantai AoE.', aoe: true },
+      { name: 'Feral Spirit', cost: 30, cd: 5, dmg: 1.5, type: 'physical', desc: 'Summon serigala, lifesteal.', lifeSteal: 0.5 } ] },
+  arcane_mage: { name: 'Mage', spec: 'Arcane', role: 'dps', color: 'var(--c-mage)', icon: ICONS.mage, baseStats: STATS.dps_r,
+    abilities: [
+      { name: 'Arcane Blast', cost: 0, cd: 0, dmg: 1.2, type: 'magic', desc: 'Ledakan arcane.' },
+      { name: 'Arcane Missiles', cost: 20, cd: 2, dmg: 2.2, type: 'magic', desc: 'Berondongan misil magic.' },
+      { name: 'Arcane Barrage', cost: 25, cd: 3, dmg: 1.5, type: 'magic', desc: 'Tembakan arcane AoE.', aoe: true },
+      { name: 'Arcane Power', cost: 35, cd: 5, dmg: 0, type: 'buff', desc: '+50% ATK selama 3 turn.', buff: { type: 'atk', value: 0.5, duration: 3 } } ] },
+  fire_mage: { name: 'Mage', spec: 'Fire', role: 'dps', color: 'var(--c-mage)', icon: ICONS.mage, baseStats: STATS.dps_r,
+    abilities: [
+      { name: 'Fireball', cost: 0, cd: 0, dmg: 1.1, type: 'magic', desc: 'Bola api dasar.' },
+      { name: 'Pyroblast', cost: 25, cd: 3, dmg: 2.5, type: 'magic', desc: 'Ledakan api raksasa.' },
+      { name: 'Flamestrike', cost: 25, cd: 3, dmg: 1.4, type: 'magic', desc: 'Pilar api AoE.', aoe: true },
+      { name: 'Combustion', cost: 35, cd: 5, dmg: 0, type: 'buff', desc: '+100% Crit Chance 2 turn.', buff: { type: 'atk', value: 0.2, duration: 2 }, critBonus: 100 } ] },
+  frost_mage: { name: 'Mage', spec: 'Frost', role: 'dps', color: 'var(--c-mage)', icon: ICONS.mage, baseStats: STATS.dps_r,
+    abilities: [
+      { name: 'Frostbolt', cost: 0, cd: 0, dmg: 1.0, type: 'magic', desc: 'Es dasar, perlambat musuh.' },
+      { name: 'Ice Lance', cost: 15, cd: 1, dmg: 1.5, type: 'magic', desc: 'Tombak es instan.' },
+      { name: 'Blizzard', cost: 25, cd: 3, dmg: 1.3, type: 'magic', desc: 'Badai es AoE + 1 turn stun.', aoe: true, stun: 1 },
+      { name: 'Icy Veins', cost: 30, cd: 5, dmg: 0, type: 'buff', desc: '+40% ATK selama 3 turn.', buff: { type: 'atk', value: 0.4, duration: 3 } } ] },
+  aff_warlock: { name: 'Warlock', spec: 'Affliction', role: 'dps', color: 'var(--c-warlock)', icon: ICONS.warlock, baseStats: STATS.dps_r,
+    abilities: [
+      { name: 'Shadow Bolt', cost: 0, cd: 0, dmg: 1.0, type: 'magic', desc: 'Serangan void murni.' },
+      { name: 'Agony', cost: 15, cd: 0, dmg: 0.2, type: 'magic', desc: 'DoT stack damage tinggi.', dot: { dmg: 0.7, duration: 4 } },
+      { name: 'Malefic Rapture', cost: 25, cd: 2, dmg: 2.0, type: 'magic', desc: 'Meledakkan efek DoT.' },
+      { name: 'Drain Life', cost: 20, cd: 3, dmg: 1.0, type: 'magic', desc: 'Serangan + 100% Lifesteal.', lifeSteal: 1.0 } ] },
+  demo_warlock: { name: 'Warlock', spec: 'Demonology', role: 'dps', color: 'var(--c-warlock)', icon: ICONS.warlock, baseStats: STATS.dps_r,
+    abilities: [
+      { name: 'Demonbolt', cost: 0, cd: 0, dmg: 1.2, type: 'magic', desc: 'Serangan iblis.' },
+      { name: 'Hand of Gul\'dan', cost: 20, cd: 2, dmg: 1.5, type: 'magic', desc: 'Meteor + summon imp AoE.', aoe: true },
+      { name: 'Call Dreadstalkers', cost: 25, cd: 3, dmg: 1.8, type: 'physical', desc: 'Summon anjing iblis menerkam.' },
+      { name: 'Demonic Tyrant', cost: 35, cd: 5, dmg: 0, type: 'buff', desc: 'Buff pet, +50% ATK 3 turn.', buff: { type: 'atk', value: 0.5, duration: 3 } } ] },
+  destro_warlock: { name: 'Warlock', spec: 'Destruction', role: 'dps', color: 'var(--c-warlock)', icon: ICONS.warlock, baseStats: STATS.dps_r,
+    abilities: [
+      { name: 'Incinerate', cost: 0, cd: 0, dmg: 1.2, type: 'magic', desc: 'Bakar target.' },
+      { name: 'Conflagrate', cost: 15, cd: 2, dmg: 1.5, type: 'magic', desc: 'Ledakan api instan.' },
+      { name: 'Chaos Bolt', cost: 30, cd: 3, dmg: 3.0, type: 'magic', desc: 'Serangan chaos penghancur murni.' },
+      { name: 'Summon Infernal', cost: 40, cd: 5, dmg: 1.5, type: 'magic', desc: 'Meteor AoE stun + buff.', aoe: true, stun: 1, buff: { type: 'atk', value: 0.3, duration: 3 } } ] },
+  windwalker_monk: { name: 'Monk', spec: 'Windwalker', role: 'dps', color: 'var(--c-monk)', icon: ICONS.monk, baseStats: STATS.dps_m,
+    abilities: [
+      { name: 'Tiger Palm', cost: 0, cd: 0, dmg: 1.0, type: 'physical', desc: 'Pukulan telapak macan.' },
+      { name: 'Rising Sun Kick', cost: 15, cd: 2, dmg: 1.8, type: 'physical', desc: 'Tendangan matahari terbit.' },
+      { name: 'Fists of Fury', cost: 25, cd: 3, dmg: 1.5, type: 'physical', desc: 'Pukulan beruntun AoE.', aoe: true },
+      { name: 'Touch of Death', cost: 35, cd: 5, dmg: 3.0, type: 'physical', desc: 'Serangan mematikan titik vital.' } ] },
+  feral_druid: { name: 'Druid', spec: 'Feral', role: 'dps', color: 'var(--c-druid)', icon: ICONS.druid, baseStats: STATS.dps_m,
+    abilities: [
+      { name: 'Shred', cost: 0, cd: 0, dmg: 1.2, type: 'physical', desc: 'Cakaran macan.' },
+      { name: 'Rake', cost: 15, cd: 2, dmg: 0.8, type: 'physical', desc: 'Bleed DoT damage.', dot: { dmg: 0.6, duration: 3 } },
+      { name: 'Ferocious Bite', cost: 25, cd: 3, dmg: 2.2, type: 'physical', desc: 'Gigitan finishing move.' },
+      { name: 'Berserk', cost: 30, cd: 5, dmg: 0, type: 'buff', desc: '+50% ATK & Energi penuh.', buff: { type: 'atk', value: 0.5, duration: 3 } } ] },
+  balance_druid: { name: 'Druid', spec: 'Balance', role: 'dps', color: 'var(--c-druid)', icon: ICONS.druid, baseStats: STATS.dps_r,
+    abilities: [
+      { name: 'Wrath', cost: 0, cd: 0, dmg: 1.1, type: 'magic', desc: 'Energi solar.' },
+      { name: 'Starfire', cost: 15, cd: 2, dmg: 1.4, type: 'magic', desc: 'Energi lunar AoE.', aoe: true },
+      { name: 'Starsurge', cost: 25, cd: 3, dmg: 2.2, type: 'magic', desc: 'Ledakan bintang murni.' },
+      { name: 'Celestial Align', cost: 35, cd: 5, dmg: 0, type: 'buff', desc: '+40% ATK & +20% Crit.', buff: { type: 'atk', value: 0.4, duration: 3 }, critBonus: 20 } ] },
+  frost_dk: { name: 'Death Knight', spec: 'Frost', role: 'dps', color: 'var(--c-dk)', icon: ICONS.dk, baseStats: STATS.dps_m,
+    abilities: [
+      { name: 'Obliterate', cost: 0, cd: 0, dmg: 1.4, type: 'physical', desc: 'Tebasan senjata ganda.' },
+      { name: 'Howling Blast', cost: 15, cd: 2, dmg: 1.2, type: 'magic', desc: 'Angin es AoE.', aoe: true },
+      { name: 'Frost Strike', cost: 20, cd: 1, dmg: 1.6, type: 'magic', desc: 'Serangan pedang beku.' },
+      { name: 'Pillar of Frost', cost: 30, cd: 5, dmg: 0, type: 'buff', desc: '+40% ATK selama 3 turn.', buff: { type: 'atk', value: 0.4, duration: 3 } } ] },
+  unholy_dk: { name: 'Death Knight', spec: 'Unholy', role: 'dps', color: 'var(--c-dk)', icon: ICONS.dk, baseStats: STATS.dps_m,
+    abilities: [
+      { name: 'Festering Strike', cost: 0, cd: 0, dmg: 1.2, type: 'physical', desc: 'Tebasan wabah.' },
+      { name: 'Scourge Strike', cost: 15, cd: 2, dmg: 1.8, type: 'magic', desc: 'Pecahkan luka wabah.' },
+      { name: 'Death Coil', cost: 20, cd: 0, dmg: 1.0, type: 'magic', desc: 'Lemparan energi death + DoT.', dot: { dmg: 0.4, duration: 3 } },
+      { name: 'Army of Dead', cost: 40, cd: 6, dmg: 2.0, type: 'physical', desc: 'Summon ghoul menyerbu musuh AoE.', aoe: true } ] },
+  havoc_dh: { name: 'Demon Hunter', spec: 'Havoc', role: 'dps', color: 'var(--c-dh)', icon: ICONS.dh, baseStats: STATS.dps_m,
+    abilities: [
+      { name: 'Demon\'s Bite', cost: 0, cd: 0, dmg: 1.2, type: 'physical', desc: 'Tebasan glaive ganda.' },
+      { name: 'Blade Dance', cost: 20, cd: 3, dmg: 1.5, type: 'physical', desc: 'Tarian pedang AoE.', aoe: true },
+      { name: 'Chaos Strike', cost: 25, cd: 1, dmg: 2.0, type: 'magic', desc: 'Tebasan chaos murni.' },
+      { name: 'Metamorphosis', cost: 35, cd: 5, dmg: 0, type: 'buff', desc: '+50% ATK & +20% Lifesteal.', buff: { type: 'atk', value: 0.5, duration: 3 }, lifeSteal: 0.2 } ] },
+  devastation_evoker: { name: 'Evoker', spec: 'Devastation', role: 'dps', color: 'var(--c-evoker)', icon: ICONS.evoker, baseStats: STATS.dps_r,
+    abilities: [
+      { name: 'Azure Strike', cost: 0, cd: 0, dmg: 1.1, type: 'magic', desc: 'Serangan es biru.' },
+      { name: 'Fire Breath', cost: 20, cd: 3, dmg: 1.5, type: 'magic', desc: 'Nafas naga AoE.', aoe: true },
+      { name: 'Disintegrate', cost: 30, cd: 2, dmg: 2.2, type: 'magic', desc: 'Laser biru penghancur.' },
+      { name: 'Dragonrage', cost: 40, cd: 5, dmg: 0, type: 'buff', desc: '+50% Crit & +30% ATK.', buff: { type: 'atk', value: 0.3, duration: 3 }, critBonus: 50 } ] },
+  augmentation_evoker: { name: 'Evoker', spec: 'Augmentation', role: 'dps', color: 'var(--c-evoker)', icon: ICONS.evoker, baseStats: STATS.dps_r,
+    abilities: [
+      { name: 'Eruption', cost: 0, cd: 0, dmg: 1.2, type: 'magic', desc: 'Ledakan bumi di bawah target.' },
+      { name: 'Upheaval', cost: 20, cd: 3, dmg: 1.5, type: 'magic', desc: 'AoE bumi meledak.', aoe: true },
+      { name: 'Prescience', cost: 25, cd: 4, dmg: 0, type: 'buff', desc: '+40% Crit Chance & +DEF.', buff: { type: 'def', value: 0.4, duration: 4 }, critBonus: 40 },
+      { name: 'Breath of Eons', cost: 35, cd: 5, dmg: 2.0, type: 'magic', desc: 'Serangan waktu masif + DoT.', dot: { dmg: 0.5, duration: 3 } } ] }
+};
+
+// ITEM & ENEMY DATA (Dipertahankan dan dioptimasi)
+const ITEM_SLOTS = ['head', 'shoulders', 'chest', 'hands', 'legs', 'feet', 'weapon', 'offhand'];
+const RARITIES = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
+const RARITY_COLORS = { common: '#9d9d9d', uncommon: '#1eff00', rare: '#0070dd', epic: '#a335ee', legendary: '#ff8000' };
+
+const ENEMY_TYPES = {
+  forest: [
+    { name: 'Forest Wolf', hp: 35, atk: 10, def: 4, xp: 12, color: '#8b7355', icon: 'M4 10l4-4 4 4 4-4 4 4v6h-2v-4h-2v4h-2v-4h-4v4H6v-4H4v-2z' },
+    { name: 'Gnoll Scout', hp: 45, atk: 13, def: 5, xp: 18, color: '#a08060', icon: 'M6 4l2 4-2 4 2 4 6-2 6 2 2-4-2-4 2-4-2-4-6 2-6-2z' },
+    { name: 'Murloc Tidecaller', hp: 40, atk: 11, def: 6, xp: 16, color: '#5a8a6a', icon: 'M3 8l3 4-3 4h6l3-4-3-4H3zm12 0l3 4-3 4h6l-3-4 3-4h-6z' }
+  ],
+  mountain: [
+    { name: 'Mountain Troll', hp: 75, atk: 18, def: 10, xp: 35, color: '#6a5a4a', icon: 'M6 4l2 6-4 8h4l2-4h4l2 4h4l-4-8 2-6H6z' },
+    { name: 'Stone Golem', hp: 100, atk: 15, def: 18, xp: 45, color: '#7a7a8a', icon: 'M4 6h16v4H4V6zm0 6h16v8H4v-8zm2 2v4h4v-4H6zm8 0v4h4v-4h-4z' },
+    { name: 'Harpy Matriarch', hp: 65, atk: 22, def: 8, xp: 40, color: '#9a6a8a', icon: 'M3 10l5-6 4 4 4-4 5 6-3 4-2-2-2 2v6h-4v-6l-2-2-2 2-3-4z' }
+  ],
+  dungeon: [
+    { name: 'Cultist Acolyte', hp: 60, atk: 16, def: 7, xp: 28, color: '#6a3a4a', icon: 'M6 4l6 4 6-4-2 8H8L6 4zm0 12h12v6H6v-6z' },
+    { name: 'Undead Knight', hp: 90, atk: 20, def: 12, xp: 42, color: '#4a4a5a', icon: 'M5 4l7 4 7-4v8l-7 4-7-4V4zm0 12h14v6H5v-6z' }
+  ]
+};
+
+const DUNGEON_BOSSES = [{ name: 'Ogre Magus', hp: 280, atk: 32, def: 14, xp: 220, color: '#5a7a4a', icon: 'M4 4l4 4h8l4-4v8l-4 4v4l-4 4-4-4v-4l-4-4V4z' }];
+const RAID_BOSSES = [{ name: 'Onyxia', hp: 800, atk: 45, def: 20, xp: 800, color: '#2a1a3a', phases: 3, icon: 'M2 10l4-2 2-4 4 2 4-2 4 2 4-2v8l-4 2-4-2-4 2-4-2-4 2V10zm4 6l2 4h12l2-4v4l-4 2H10l-4-2v-4z' }];
+
+// ===== GAME STATE =====
+let state = { player: null, currentScreen: 'character', worldMap: null, combat: null, mode: null, dungeonRun: null };
+
+// ===== UTILITIES =====
+function rng(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+function showToast(msg) {
+  const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg;
+  document.getElementById('toast-container').appendChild(t); setTimeout(() => t.remove(), 3000);
+}
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + name).classList.add('active'); state.currentScreen = name; window.scrollTo(0, 0);
+}
+
+// ===== CHARACTER CREATION =====
+function filterClass(role) {
+  document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+  event.target.classList.add('active');
+  renderClassGrid(role);
+}
+
+function renderClassGrid(filterRole = 'all') {
+  const grid = document.getElementById('class-grid');
+  grid.innerHTML = '';
+  Object.entries(CLASSES).forEach(([key, c]) => {
+    if (filterRole !== 'all' && c.role !== filterRole && filterRole !== 'dps') return;
+    if (filterRole === 'dps' && !c.role.includes('dps')) return; // includes both dps_m and dps_r mapping if needed, here it's just 'dps'
+
+    const card = document.createElement('div');
+    card.className = 'class-card';
+    card.style.setProperty('--class-color', c.color);
+    card.innerHTML = `
+      <div class="class-role-badge role-${c.role}">${c.role}</div>
+      <div class="class-icon"><svg viewBox="0 0 24 24"><path d="${c.icon}"/></svg></div>
+      <div class="class-name">${c.name}</div>
+      <div class="class-spec">${c.spec}</div>
+      <div class="class-stats">
+        <div class="class-stat"><div class="class-stat-label">HP</div><div class="class-stat-value">${c.baseStats.hp}</div></div>
+        <div class="class-stat"><div class="class-stat-label">ATK</div><div class="class-stat-value">${c.baseStats.atk}</div></div>
+        <div class="class-stat"><div class="class-stat-label">DEF</div><div class="class-stat-value">${c.baseStats.def}</div></div>
+      </div>
+    `;
+    card.onclick = () => createCharacter(key);
+    grid.appendChild(card);
+  });
+}
+
+function initClassSelect() {
+  renderClassGrid('all');
+  if (localStorage.getItem('azeroth_board_save')) document.getElementById('continue-btn').style.display = 'inline-block';
+}
+
+function createCharacter(classKey) {
+  const cls = CLASSES[classKey];
+  state.player = {
+    class: classKey, name: `${cls.spec} ${cls.name}`, level: 1, xp: 0, xpNext: 100, gold: 50, statPoints: 0,
+    hp: cls.baseStats.hp, maxHp: cls.baseStats.hp, mana: cls.baseStats.mana, maxMana: cls.baseStats.mana,
+    atk: cls.baseStats.atk, def: cls.baseStats.def, crit: cls.baseStats.crit, speed: cls.baseStats.speed,
+    baseStats: { ...cls.baseStats }, inventory: [], equipped: {}, buffs: [], pvpRating: 1000,
+    abilities: cls.abilities.map(a => ({ ...a, currentCd: 0 }))
+  };
+  saveGame(); enterTown();
+}
+
+// ===== TOWN & PANELS =====
+function enterTown() { showScreen('town'); renderPlayerPanel(); renderActionArea(); saveGame(); }
+
+function getEquipBonus(stat) {
+  let total = 0; Object.values(state.player.equipped).forEach(item => { if (item && item.stats[stat]) total += item.stats[stat]; }); return total;
+}
+
+function renderPlayerPanel() {
+  const p = state.player; const cls = CLASSES[p.class];
+  const panel = document.getElementById('player-panel');
+  panel.style.setProperty('--player-color', cls.color);
+  
+  const tAtk = p.atk + getEquipBonus('atk'); const tDef = p.def + getEquipBonus('def');
+  const tHp = p.maxHp + getEquipBonus('hp'); const tCrit = p.crit + getEquipBonus('crit');
+  
+  panel.innerHTML = `
+    <div class="player-avatar"><svg viewBox="0 0 24 24"><path d="${cls.icon}"/></svg></div>
+    <div class="player-name">${p.name}</div>
+    <div class="player-level">Level <span>${p.level}</span></div>
+    <div class="resource-bar bar-hp">
+      <div class="bar-label"><span class="label-name">Health</span><span class="label-value">${p.hp}/${tHp}</span></div>
+      <div class="bar-track"><div class="bar-fill" style="width:${(p.hp/tHp)*100}%;"></div></div>
+    </div>
+    <div class="resource-bar bar-mana">
+      <div class="bar-label"><span class="label-name">Mana</span><span class="label-value">${p.mana}/${p.maxMana}</span></div>
+      <div class="bar-track"><div class="bar-fill" style="width:${(p.mana/p.maxMana)*100}%;"></div></div>
+    </div>
+    <div class="resource-bar bar-xp">
+      <div class="bar-label"><span class="label-name">XP</span><span class="label-value">${p.xp}/${p.xpNext}</span></div>
+      <div class="bar-track"><div class="bar-fill" style="width:${(p.xp/p.xpNext)*100}%;"></div></div>
+    </div>
+    <div class="stats-grid">
+      <div class="stat-box"><span class="stat-label">ATK</span><span class="stat-value">${tAtk}</span></div>
+      <div class="stat-box"><span class="stat-label">DEF</span><span class="stat-value">${tDef}</span></div>
+      <div class="stat-box"><span class="stat-label">Crit</span><span class="stat-value">${tCrit.toFixed(1)}%</span></div>
+      <div class="stat-box"><span class="stat-label">Gold</span><span class="stat-value" style="color:var(--gold-bright);">${p.gold}</span></div>
+    </div>
+  `;
+}
+
+function renderActionArea() {
+  const p = state.player; const area = document.getElementById('action-area');
+  area.innerHTML = `
+    <div class="action-card" style="--accent-color: var(--uncommon);" onclick="enterWorldMap()">
+      <div class="action-icon"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zm0 7L2 14l10 5 10-5-10-5z"/></svg></div>
+      <div><div class="action-title">Adventure</div><div class="action-desc">Jelajahi peta dunia, lawan mob, farm XP.</div></div>
+      <div class="action-meta">Level 1+ · Solo</div>
+    </div>
+    <div class="action-card ${p.level < 5 ? 'disabled' : ''}" style="--accent-color: var(--rare);" onclick="${p.level < 5 ? '' : 'enterDungeon()'}">
+      <div class="action-icon"><svg viewBox="0 0 24 24"><path d="M5 8h14V6H5v2zm0 4h14v-2H5v2zm0 4h14v-2H5v2zM3 4h18v16H3V4z"/></svg></div>
+      <div><div class="action-title">Dungeon</div><div class="action-desc">5 encounter + Boss. Item Rare/Epic.</div></div>
+      <div class="action-meta">${p.level < 5 ? 'Membutuhkan Level 5' : 'Level 5+'}</div>
+    </div>
+    <div class="action-card ${p.level < 15 ? 'disabled' : ''}" style="--accent-color: var(--epic);" onclick="${p.level < 15 ? '' : 'enterRaid()'}">
+      <div class="action-icon"><svg viewBox="0 0 24 24"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg></div>
+      <div><div class="action-title">Raid</div><div class="action-desc">Lawan Boss berfase. Item Legendary!</div></div>
+      <div class="action-meta">${p.level < 15 ? 'Membutuhkan Level 15' : 'Level 15+'}</div>
+    </div>
+    <div class="action-card ${p.level < 10 ? 'disabled' : ''}" style="--accent-color: var(--health);" onclick="${p.level < 10 ? '' : 'enterPvP()'}">
+      <div class="action-icon"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93z"/></svg></div>
+      <div><div class="action-title">PvP Arena</div><div class="action-desc">Lawan spec lain secara simulasi.</div></div>
+      <div class="action-meta">${p.level < 10 ? 'Membutuhkan Level 10' : 'Level 10+'}</div>
+    </div>
+  `;
+}
+
+// ===== WORLD MAP (Simplified logic for brevity) =====
+function enterWorldMap() {
+  if (!state.worldMap) {
+    const tiles = [];
+    for(let y=0; y<8; y++) {
+      for(let x=0; x<10; x++) {
+        let t = 'forest'; if(x===5 && y===4) t='town'; else if(Math.random()<0.3) t='mountain';
+        tiles.push({x,y,type:t, revealed: true, cleared: false});
+      }
+    }
+    state.worldMap = { tiles, cols:10, rows:8, playerX:5, playerY:4 };
+  }
+  state.mode = 'world'; showScreen('map'); renderMap();
+}
+
+function renderMap() {
+  const canvas = document.getElementById('map-canvas'); const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const w = canvas.width/10, h = canvas.height/8;
+  state.worldMap.tiles.forEach(t => {
+    ctx.fillStyle = t.type==='town'?'#5a5a3a':t.type==='mountain'?'#5a4a6a':'#3a5f3a';
+    ctx.fillRect(t.x*w, t.y*h, w, h); ctx.strokeRect(t.x*w, t.y*h, w, h);
+    if(t.x===state.worldMap.playerX && t.y===state.worldMap.playerY) {
+      ctx.fillStyle = '#ffd966'; ctx.beginPath(); ctx.arc(t.x*w+w/2, t.y*h+h/2, 6, 0, Math.PI*2); ctx.fill();
+    }
+  });
+}
+document.getElementById('map-canvas').addEventListener('click', e => {
+  const r = e.target.getBoundingClientRect();
+  const tx = Math.floor((e.clientX - r.left)/(e.target.width/10)), ty = Math.floor((e.clientY - r.top)/(e.target.height/8));
+  if(Math.abs(tx-state.worldMap.playerX)+Math.abs(ty-state.worldMap.playerY) === 1) {
+    state.worldMap.playerX = tx; state.worldMap.playerY = ty;
+    const t = state.worldMap.tiles.find(t=>t.x===tx&&t.y===ty);
+    if(t.type==='town') { state.player.hp=state.player.maxHp+getEquipBonus('hp'); state.player.mana=state.player.maxMana; showToast('Resting di Town!'); }
+    else { startCombat([pick(ENEMY_TYPES[t.type==='mountain'?'mountain':'forest'])], 'world'); }
+    renderMap();
+  }
+});
+
+// ===== COMBAT SYSTEM =====
+function startCombat(enemiesRaw, mode) {
+  state.mode = mode;
+  state.combat = { enemies: enemiesRaw.map(e => ({ ...e, maxHp: e.hp, currentHp: e.hp, alive: true, buffs: [], dots: [], stunned: 0 })), currentEnemy: 0, turn: 'player', log: [] };
+  state.player.abilities.forEach(a => a.currentCd = 0); state.player.buffs = [];
+  showScreen('combat'); renderCombat(); addLog('Pertempuran dimulai!', 'player');
+}
+
+function renderCombat() {
+  const p = state.player; const cls = CLASSES[p.class];
+  const tHp = p.maxHp + getEquipBonus('hp');
+  
+  document.getElementById('fighter-player').innerHTML = `
+    <div class="fighter-avatar" style="border-color:${cls.color}"><svg viewBox="0 0 24 24" style="fill:${cls.color}"><path d="${cls.icon}"/></svg></div>
+    <div class="fighter-name" style="color:${cls.color}">${p.name}</div>
+    <div class="resource-bar bar-hp"><div class="bar-track"><div class="bar-fill" style="width:${(p.hp/tHp)*100}%;"></div></div></div>
+    <div class="resource-bar bar-mana"><div class="bar-track"><div class="bar-fill" style="width:${(p.mana/p.maxMana)*100}%;"></div></div></div>
+  `;
+  
+  const e = state.combat.enemies[0];
+  document.getElementById('fighter-enemy-container').innerHTML = e && e.alive ? `
+    <div class="fighter-avatar" id="enemy-avatar" style="border-color:${e.color}"><svg viewBox="0 0 24 24" style="fill:${e.color}"><path d="${e.icon}"/></svg></div>
+    <div class="fighter-name" style="color:${e.color}">${e.name}</div>
+    <div class="resource-bar bar-hp"><div class="bar-track"><div class="bar-fill" style="width:${(e.currentHp/e.maxHp)*100}%;"></div></div></div>
+  ` : '';
+
+  document.getElementById('ability-bar').innerHTML = p.abilities.map((a, i) => `
+    <button class="ability-btn" ${state.combat.turn !== 'player' || a.currentCd > 0 || p.mana < a.cost ? 'disabled' : ''} onclick="useAbility(${i})">
+      <div class="ability-name">${a.name}</div><div class="ability-cost">${a.cost} MP</div>
+      <div class="ability-desc">${a.desc}</div>${a.currentCd > 0 ? `<div class="ability-cd">${a.currentCd}</div>` : ''}
+    </button>`).join('');
+  
+  const log = document.getElementById('combat-log');
+  log.innerHTML = state.combat.log.slice(-10).map(l => `<div class="log-entry">${l.html}</div>`).join('');
+  log.scrollTop = log.scrollHeight;
+}
+
+function useAbility(idx) {
+  if (state.combat.turn !== 'player') return;
+  const p = state.player; const ab = p.abilities[idx];
+  p.mana -= ab.cost; if (ab.cd > 0) ab.currentCd = ab.cd;
+
+  // Lifesteal/Heal
+  const tHp = p.maxHp + getEquipBonus('hp');
+  if (ab.heal) {
+    let amt = Math.floor(tHp * ab.heal); p.hp = Math.min(tHp, p.hp + amt);
+    showDamageNumber('+'+amt, 'heal', 'player'); addLog(`${p.name} heals <span class="log-heal">${amt} HP</span>`, 'player');
+  }
+  if (ab.buff) { p.buffs.push({ ...ab.buff }); addLog(`${p.name} casts Buff!`, 'player'); }
+
+  if (ab.dmg > 0) {
+    const target = state.combat.enemies[0];
+    let dmg = Math.floor((p.atk + getEquipBonus('atk')) * ab.dmg * (100 / (100 + target.def)));
+    let isCrit = Math.random()*100 < (p.crit + getEquipBonus('crit') + (ab.critBonus||0));
+    if(isCrit) dmg*=2;
+    target.currentHp -= dmg;
+    showDamageNumber(dmg, ab.type, 'enemy', isCrit);
+    addLog(`${p.name} uses <span class="log-player">${ab.name}</span> for ${dmg} dmg${isCrit?' (CRIT!)':''}`, 'player');
+    
+    if (ab.lifeSteal) {
+      let ls = Math.floor(dmg * ab.lifeSteal); p.hp = Math.min(tHp, p.hp + ls);
+      showDamageNumber('+'+ls, 'heal', 'player'); addLog(`Lifesteal <span class="log-heal">${ls} HP</span>`, 'player');
+    }
+    
+    if (ab.stun) target.stunned = ab.stun;
+    if (target.currentHp <= 0) { target.alive = false; target.currentHp = 0; }
+  }
+  
+  if (!state.combat.enemies[0].alive) { setTimeout(() => endCombat(true), 1000); renderCombat(); return; }
+  state.combat.turn = 'enemy'; renderCombat(); setTimeout(enemyTurn, 1000);
+}
+
+function enemyTurn() {
+  const e = state.combat.enemies[0];
+  if (e.stunned > 0) { e.stunned--; addLog(`${e.name} Stunned!`, 'enemy'); }
+  else {
+    let dmg = Math.max(1, Math.floor(e.atk * (100 / (100 + state.player.def + getEquipBonus('def')))));
+    state.player.hp -= dmg;
+    showDamageNumber(dmg, 'physical', 'player'); addLog(`${e.name} attacks for <span class="log-enemy">${dmg}</span>`, 'enemy');
+  }
+  if (state.player.hp <= 0) { setTimeout(() => endCombat(false), 800); return; }
+  
+  state.player.abilities.forEach(a => { if (a.currentCd > 0) a.currentCd--; });
+  state.combat.turn = 'player'; renderCombat();
+}
+
+function showDamageNumber(text, type, target, crit=false) {
+  const c = document.getElementById('damage-numbers'), n = document.createElement('div');
+  n.className = `dmg-num ${type} ${crit?'crit':''}`; n.textContent = text;
+  n.style.left = target === 'player' ? '20%' : '70%'; n.style.top = '40%';
+  c.appendChild(n); setTimeout(() => n.remove(), 1200);
+}
+function addLog(html) { state.combat.log.push({ html }); }
+
+function endCombat(win) {
+  const xpGain = win ? 50 * state.player.level : 0;
+  state.player.xp += xpGain; state.player.gold += win ? 20 : -10;
+  
+  // Level Up Core
+  while(state.player.xp >= state.player.xpNext) {
+    state.player.xp -= state.player.xpNext; state.player.level++; state.player.xpNext = Math.floor(state.player.xpNext*1.4);
+    state.player.maxHp += 20; state.player.atk += 3; state.player.hp = state.player.maxHp + getEquipBonus('hp');
+    showToast(`LEVEL UP! You are now Level ${state.player.level}!`);
+  }
+  
+  if(!win) state.player.hp = state.player.maxHp; // free heal on lose to prevent softlock
+  enterTown(); showToast(win ? `Victory! +${xpGain} XP` : 'Defeat! -10 Gold');
+}
+
+// Global functions exports
+window.filterClass = filterClass; window.createCharacter = createCharacter; window.enterTown = enterTown; window.returnToTown = enterTown;
+window.enterWorldMap = enterWorldMap; window.useAbility = useAbility; window.tryFlee = () => enterTown();
+window.showScreen = (name) => {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + name).classList.add('active');
+  if(name==='town') { renderPlayerPanel(); renderActionArea(); }
+};
+window.saveGame = () => { localStorage.setItem('azeroth_board_save', JSON.stringify(state)); showToast('Game Saved!'); };
+window.loadSavedGame = () => {
+  const d = localStorage.getItem('azeroth_board_save');
+  if(d) { state = JSON.parse(d); enterTown(); showToast('Welcome back to Azeroth!'); }
+};
+window.confirmReset = () => { localStorage.removeItem('azeroth_board_save'); location.reload(); };
+window.enterDungeon = () => startCombat([{ ...DUNGEON_BOSSES[0], hp: 300, currentHp: 300, maxHp: 300, alive: true }], 'dungeon');
+window.enterRaid = () => startCombat([{ ...RAID_BOSSES[0], hp: 800, currentHp: 800, maxHp: 800, alive: true }], 'raid');
+window.enterPvP = () => startCombat([{ name: 'Gladiator', hp: state.player.maxHp, atk: state.player.atk, def: state.player.def, xp: 100, color: '#e54040', icon: ICONS.warrior }], 'pvp');
+
+initClassSelect();
+</script>
+</body>
+</html>
