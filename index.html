@@ -591,7 +591,12 @@ async function startPing() {
     if (!state.user || state.mode === 'duel_sync') return; // Skip normal ping if in active duel
     const res = await apiRequest({ action: 'ping', username: state.user.username });
     
-    if (res.pendingInvites && res.pendingInvites.length > 0) res.pendingInvites.forEach(inv => showInviteModal(inv));
+    if (res.pendingInvites && res.pendingInvites.length > 0) {
+      const overlay = document.getElementById('modal-overlay');
+      // Jangan bajak modal yang sedang dibuka user (mis. inventory/retalent) tiap 5 detik.
+      // Tampilkan 1 undangan dulu; sisanya akan muncul di ping berikutnya selama masih pending.
+      if (!overlay.classList.contains('active')) showInviteModal(res.pendingInvites[0]);
+    }
     
     if (res.inviteReplies && res.inviteReplies.length > 0) {
       res.inviteReplies.forEach(reply => {
@@ -638,8 +643,18 @@ async function respondInvite(id, from, mode, response) {
   const mySnapshot = getPlayerSnapshot();
   await apiRequest({ action: 'respondInvite', inviteId: id, response: response, payload: mySnapshot });
   if (response === 'accepted') {
-    let simulatedPayload = { p2: mySnapshot, combatState: { turn: 'dice', rolls: {}, logs: ["Memasuki Arena PvP..."], p2_hp: mySnapshot.maxHp, p2_mana: mySnapshot.maxMana } };
-    startPvPSync(id, simulatedPayload, false); // P2 (Diundang)
+    showToast('Menyiapkan arena...');
+    // PENTING: jangan pakai payload simulasi lokal (dulu tidak berisi data p1 sama sekali,
+    // menyebabkan scene combat di sisi yang diundang crash/blank). Ambil state resmi dari
+    // server agar kedua pemain melihat scene yang IDENTIK (sama seperti yang di-setup server
+    // saat 'respondInvite': HP/Mana full, cooldown skill 0).
+    const dRes = await apiRequest({ action: 'getDuelState', inviteId: id });
+    if (dRes.success && dRes.payload && dRes.payload.p1 && dRes.payload.p2) {
+      startPvPSync(id, dRes.payload, false); // P2 (Diundang)
+    } else {
+      showToast('Gagal masuk arena, coba lagi.');
+      enterTown();
+    }
   }
 }
 
@@ -889,7 +904,9 @@ function openRetalentModal() {
   document.getElementById('modal-overlay').classList.add('active');
 }
 function confirmRetalent(newSpecKey) {
-  const cls = CLASSES[state.player.class]; const spec = cls.specs[newSpecKey]; const mods = ROLE_MODS[spec.role];
+  const cls = CLASSES[state.player.class]; const spec = cls.specs[newSpecKey];
+  if (!confirm(`Ganti spesialisasi ke ${spec.name} (${spec.role.toUpperCase()})? HP/Mana akan full dan semua cooldown skill direset.`)) return;
+  const mods = ROLE_MODS[spec.role];
   state.player.spec = newSpecKey; state.player.role = spec.role;
   state.player.atk = Math.floor(cls.baseStats.atk * mods.atkMult) + ((state.player.level - 1) * 2);
   state.player.def = Math.floor(cls.baseStats.def * mods.defMult); 
